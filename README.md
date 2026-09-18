@@ -13,6 +13,11 @@
 
 与方言采集平台**同机部署**（同一台 ECS），但库、进程、证书、目录全部独立。
 
+> **部署状态（2026-09-18）**：v2 已上线。
+> 线上库此刻是「刚建好」的样子——1 个超管（`admin`）、1 个项目、**没有团队、没有记录**，
+> v1 那 1 条 `work_records` 按计划原样留着。所以现在四个角色登进去看到的东西几乎一样：
+> 想看数据隔断的效果，得先在「用户管理」里建团队、设组长、再录数据。
+
 ---
 
 ## 三条核心需求 → 实现位置
@@ -170,10 +175,14 @@ DATABASE_URL=sqlite:///./_smoke.db ./.venv/Scripts/python.exe scripts/verify_cor
 #    只在真 PG 上有意义，且必须在 migrate_v2.py 跑过之后跑。
 .venv/Scripts/python.exe scripts/verify_schema.py
 
-# 服务器上跑（真 PG）
-cd /opt/crm/backend && sudo -u www-data .venv/bin/python scripts/verify_core.py
+# 服务器上跑（真 PG）。HOME=/tmp 是为了避开 www-data 家目录不可写的告警；
+# PYTHONIOENCODING=utf-8 必须带——断言标题是中文，locale 不是 UTF-8 时会直接炸在 print 上。
+cd /opt/crm/backend && sudo -u www-data HOME=/tmp PYTHONIOENCODING=utf-8 \
+  .venv/bin/python scripts/verify_core.py
 
-# 走公网域名的端到端（验 nginx / TLS / Authorization 透传）
+# ④ 走公网域名的端到端（8 项）：验 nginx / TLS / Authorization 透传、
+#    建项目 → 登记标注 → 统计卡计入、★「不存在的记录 → 404 而不是 403」。
+#    只能在服务器上跑（要用 --resolve 绕开服务器没有 hairpin NAT 这件事）。
 bash scripts/e2e_http.sh
 ```
 
@@ -201,27 +210,60 @@ bash scripts/e2e_http.sh
 
 ## 部署
 
-后端改完要**重启服务**才生效（`.env` 是启动时加载的）：
+后端改完要**重启服务**才生效（`.env` 是启动时加载的）。
+
+**顺序：先把两个包都传到 `/tmp` → 再一次性换掉前后端 → 最后重启。**
+不先把包传完的话，「后端是新的、前端还是旧的」这个窗口会持续整个上传时间；
+传完之后动手，窗口只有几秒。
 
 ```bash
-# 本地：打包 → 上传 → 解包（保留服务器上的 .env）→ 重启
+# ── ① 本地打包 + 上传 ────────────────────────────────────────────
 cd backend && tar -czf /tmp/crm-backend.tar.gz --exclude='__pycache__' app scripts requirements.txt
-scp /tmp/crm-backend.tar.gz root@182.92.9.204:/tmp/
-ssh root@182.92.9.204 'cd /opt/crm/backend && cp -a .env /tmp/k && rm -rf app scripts \
-  && tar -xzf /tmp/crm-backend.tar.gz -C /opt/crm/backend && cp -a /tmp/k .env && rm /tmp/k \
-  && chown -R www-data:www-data app scripts requirements.txt .env && systemctl restart crm-api'
+cd ../frontend && npm run build && tar -czf /tmp/crm-frontend.tar.gz -C dist .
+scp /tmp/crm-backend.tar.gz /tmp/crm-frontend.tar.gz root@182.92.9.204:/tmp/
 
-# 前端：npm run build → 传 dist → /opt/crm/frontend/dist
+# ── ② 服务器上：留回滚点 → 迁移 → 换后端 → 换前端 → 重启 ──────────
+ssh root@182.92.9.204
+cd /opt/crm/backend
+TS=$(date +%Y%m%d-%H%M%S)
+tar -czf /tmp/crm-prev-backend-$TS.tar.gz  --exclude=__pycache__ app scripts
+tar -czf /tmp/crm-prev-frontend-$TS.tar.gz -C /opt/crm/frontend/dist .
+
+# ★ 必须排在解包**之后**：这个脚本是随 `scripts/` 一起部署的，
+#   在此之前服务器上跑的是上一版（新服务器上则是根本没有这个文件）。
+cp -a .env /tmp/k && rm -rf app scripts \
+  && tar -xzf /tmp/crm-backend.tar.gz -C /opt/crm/backend && cp -a /tmp/k .env && rm /tmp/k \
+  && chown -R www-data:www-data app scripts requirements.txt .env
+sudo -u www-data HOME=/tmp .venv/bin/python scripts/migrate_v2.py   # 幂等，见「两条建表路径」
+
+rm -rf /opt/crm/frontend/dist && mkdir -p /opt/crm/frontend/dist \
+  && tar -xzf /tmp/crm-frontend.tar.gz -C /opt/crm/frontend/dist \
+  && chown -R www-data:www-data /opt/crm/frontend/dist
+
+systemctl restart crm-api && sleep 3 && systemctl is-active crm-api
+
+# ── ③ 验 ────────────────────────────────────────────────────────
+sudo -u www-data HOME=/tmp .venv/bin/python scripts/verify_schema.py
+sudo -u www-data HOME=/tmp .venv/bin/python scripts/verify_core.py   # 149 项
+sudo -u www-data HOME=/tmp .venv/bin/python scripts/verify_scope.py  # 30 项
+bash scripts/e2e_http.sh
 ```
 
-> ⚠️ `rm -rf scripts` 会连 `backup.sh` 一起删掉（每日 03:37 的备份 cron 依赖它），
-> 解包前务必确认备份脚本在包里或单独补传。
+**回滚**：把 ② 里那两个 `crm-prev-*.tar.gz` 原样解回去再重启即可
+（后端回滚同样要保留 `.env`）。
+
+> ⚠️ `rm -rf scripts` 会连 `backup.sh` 一起删掉（`/etc/cron.d/crm-backup` 每日 03:37 依赖它）。
+> 仓库里的 `scripts/backup.sh` 就是线上那份的正本，已随包一起传（2026-09-18 部署时逐字节比对确认一致）；
+> 但**改过线上备份脚本而没同步回仓库**的话，这一步会把它覆盖掉。
 
 ## 运维备忘
 
 - 服务：`systemctl status crm-api`（127.0.0.1:8001，`MemoryMax=512M` 防拖垮同机的方言平台）
 - 库：`sudo -u postgres psql -d crm_admin`，角色 `crm`
-- 备份：每日 03:37（与方言平台 03:17 错开）→ `/data/crm/backups`
+- 备份：`/etc/cron.d/crm-backup` → 每日 03:37 跑 `scripts/backup.sh`（与方言平台 03:17 错开）
+  → 落在 `/data/crm/backups`，日志 `/var/log/crm-backup.log`
+  （★ 它是 **cron.d 里的系统任务，不是 `crontab -l`**——用 `crontab -l` 查会得到
+  「no crontab for root」，看着像备份没配，实际是有的）
 - 密钥：`/deploy-bundle/CRM_SECRETS.txt`（root 600）与 `/opt/crm/backend/.env`
 - 服务器**没有 hairpin NAT**：在服务器上自测要走
   `curl --resolve crm.qlzby.com:443:127.0.0.1 https://crm.qlzby.com/`，直连公网 IP 会失败
@@ -235,5 +277,5 @@ ssh root@182.92.9.204 'cd /opt/crm/backend && cp -a .env /tmp/k && rm -rf app sc
 | `/api/work-records` 路由仍挂载 | 前端已无入口，但它写出的记录**不进 v2 的任何统计**。摘它要连带改掉一条 v1 回归（那条回归同时在验「v1 记录也算数」的删除守卫），留到确认无人访问后一起做 |
 | `projects.unit` 列 | v1 遗留。接口/界面/统计都读不到它，只是列还在库里 |
 | `work_records` 表与模型 | 线上还有 v1 数据。模型必须继续留在 `models/__init__.py` 里，否则 `create_all` 在新环境不会建它，schema 会漂 |
-| 打包命令里的 `rm -rf scripts` | 会连 `backup.sh` 一起删（备份 cron 依赖它）。改打包方式之前，每次部署都要确认备份脚本在包里 |
+| 打包命令里的 `rm -rf scripts` | 会连 `backup.sh` 一起删（`/etc/cron.d/crm-backup` 依赖它）。仓库里那份已随包部署并逐字节核对过，但「在服务器上直接改备份脚本」这个习惯会让它被悄悄覆盖——改备份要改仓库那份再部署 |
 
