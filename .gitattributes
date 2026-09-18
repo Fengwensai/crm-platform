@@ -1,0 +1,16 @@
+# 脚本一律 LF 行尾，与平台无关地钉死。
+#
+# 本机的 `core.autocrlf=true`：不写这个文件的话，Windows 上**新 clone** 出来的
+# `scripts/*.sh` 是 CRLF。仓库里的脚本不是靠 git 部署的，而是 `tar` 打包整个工作区
+# 传上服务器，于是那份 CRLF 会被原样带上线：
+#
+#   · `e2e_http.sh`  → `bash: $'\r': command not found`，报错完全看不出是行尾问题
+#   · `backup.sh`    → 被 `/etc/cron.d/crm-backup` 调用，坏了不会有人立刻发现，
+#                      表现是「每天的备份某天起就没了」
+#
+# 用 `eol=lf` 而不是 `-text`：显式声明「这是文本，且必须是 LF」，
+# 比「不要碰它」更贴合意图（后者在别的机器上仍然可能被转换）。
+*.sh text eol=lf
+
+# Python 对 CRLF 是容忍的，但保持一致，免得 diff 里出现整文件行尾噪声。
+*.py text eol=lf

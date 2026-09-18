@@ -36,24 +36,32 @@ ROLE=$(echo "$ME" | jqv "['role']")
 CODE=$($CURL -o /dev/null -w '%{http_code}' "$B/api/stats/overview")
 [ "$CODE" = "401" ] && ok "无 token 访问受保护接口 → 401" || bad "无 token 应 401" "得到 $CODE"
 
-# 4) 建项目 → 填报 → 统计
+# 4) 建项目 → 登记一条标注 → 统计卡
+#    ★ v2 起走 /api/annotations。原来这里打的是 v1 的 /api/work-records，
+#      而 v2 的统计**有意不读 work_records**（见 README「双轨数据模型」），
+#      所以那条断言会永远失败——不是部署坏了，是脚本没跟着换轨。
 PJ=$($CURL -X POST "$B/api/projects" -H "$AUTH" -H 'Content-Type: application/json' \
-      -d "{\"code\":\"$MARK\",\"name\":\"端到端临时项目\",\"unit\":\"条\"}")
+      -d "{\"code\":\"$MARK\",\"name\":\"端到端临时项目\"}")
 PID=$(echo "$PJ" | jqv "['id']")
 [ -n "$PID" ] && ok "建项目成功（id=$PID）" || bad "建项目" "$PJ"
 
-REC=$($CURL -X POST "$B/api/work-records" -H "$AUTH" -H 'Content-Type: application/json' \
-       -d "{\"project_id\":$PID,\"work_date\":\"$TODAY\",\"amount\":123,\"rework_amount\":23,\"remark\":\"端到端\"}")
-QUAL=$(echo "$REC" | jqv "['qualified']")
+REC=$($CURL -X POST "$B/api/annotations" -H "$AUTH" -H 'Content-Type: application/json' \
+       -d "{\"project_id\":$PID,\"work_date\":\"$TODAY\",\"item_no\":\"$MARK\",\"box2d\":23,\"box3d\":100,\"remark\":\"端到端\"}")
 RID=$(echo "$REC" | jqv "['id']")
-[ "$QUAL" = "100" ] && ok "填报成功且合格量 123-23=100" || bad "填报" "$REC"
+BT=$(echo "$REC" | jqv "['box_total']")
+[ "$BT" = "123" ] && ok "登记标注成功且 box_total 23+100=123" || bad "登记标注" "$REC"
 
-OV=$($CURL "$B/api/stats/overview" -H "$AUTH")
-TA=$(echo "$OV" | jqv "['total_amount']")
-[ "${TA:-0}" -ge 123 ] && ok "总览统计已计入（total_amount=$TA）" || bad "总览统计" "$OV"
+SUM=$($CURL "$B/api/stats/annotation-summary" -H "$AUTH")
+TB=$(echo "$SUM" | jqv "['total_box']")
+[ "${TB:-0}" -ge 123 ] && ok "统计卡已计入（total_box=$TB）" || bad "统计卡" "$SUM"
 
-# 5) 清理：删记录 + 删项目
-D1=$($CURL -o /dev/null -w '%{http_code}' -X DELETE "$B/api/work-records/$RID" -H "$AUTH")
+# 5) ★ 越权铁律：不存在的记录是 404 而不是 403。
+#    403 等于承认「这条存在」，是个存在性预言机（见 README 的 404/403 规则表）。
+CODE404=$($CURL -o /dev/null -w '%{http_code}' -X DELETE "$B/api/annotations/99999999" -H "$AUTH")
+[ "$CODE404" = "404" ] && ok "★ 不存在的记录 → 404（不是 403）" || bad "404 铁律" "得到 $CODE404"
+
+# 6) 清理：删记录 + 删项目
+D1=$($CURL -o /dev/null -w '%{http_code}' -X DELETE "$B/api/annotations/$RID" -H "$AUTH")
 D2=$($CURL -o /dev/null -w '%{http_code}' -X DELETE "$B/api/projects/$PID" -H "$AUTH")
 [ "$D1" = "200" ] && [ "$D2" = "200" ] && ok "临时数据已清理（记录 $D1 / 项目 $D2）" \
                                         || bad "清理临时数据" "记录=$D1 项目=$D2"
