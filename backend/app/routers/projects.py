@@ -3,11 +3,11 @@ from sqlalchemy.orm import Session
 
 from ..core.audit import log_action
 from ..core.deps import get_current_user, is_manager, require_manager
+from ..core.guards import count_project_records, format_counts
 from ..core.netutil import client_ip
 from ..db import get_db
 from ..models.project import Project
 from ..models.user import User
-from ..models.work_record import WorkRecord
 from ..schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["项目"])
@@ -102,16 +102,19 @@ def delete_project(
     manager: User = Depends(require_manager),
     db: Session = Depends(get_db),
 ):
-    """删除项目。已有填报记录的项目**不允许删**（会变成孤儿数据），
-    应改为「归档」——归档后不再出现在填报选项里，历史数据完好。"""
+    """删除项目。已有历史数据的项目**不允许删**（会变成孤儿数据），
+    应改为「归档」——归档后不再出现在填报选项里，历史数据完好。
+
+    ★ 守卫查的是**标注 + 质检 + v1 填报**三处，见 core/guards.py。
+    """
     p = db.get(Project, pid)
     if p is None:
         raise HTTPException(status_code=404, detail="项目不存在")
-    used = db.query(WorkRecord).filter(WorkRecord.project_id == pid).count()
-    if used:
+    counts = count_project_records(db, pid)
+    if counts:
         raise HTTPException(
             status_code=422,
-            detail=f"该项目已有 {used} 条填报记录，不能删除；请改为「归档」",
+            detail=f"该项目已有{format_counts(counts)}，不能删除；请改为「归档」",
         )
     log_action(
         db,

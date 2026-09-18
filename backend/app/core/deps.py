@@ -5,11 +5,21 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models.user import User
+from .scope import LEADER_ROLE, MANAGER_ROLES
 from .security import decode_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-MANAGER_ROLES = ("manager", "super_admin")
+__all__ = [
+    "LEADER_ROLE",
+    "MANAGER_ROLES",
+    "bearer_scheme",
+    "get_current_user",
+    "is_leader",
+    "is_manager",
+    "require_manager",
+    "require_super_admin",
+]
 
 
 def _decode(credentials: HTTPAuthorizationCredentials | None) -> dict:
@@ -60,3 +70,9 @@ def require_super_admin(user: User = Depends(get_current_user)) -> User:
 
 def is_manager(user: User) -> bool:
     return user.role in MANAGER_ROLES
+
+
+def is_leader(user: User) -> bool:
+    """是不是组长（能看本组）。注意组长**不是**管理者：打 `/api/users`、
+    `/api/audit-logs` 这类管理者端点照样 403。"""
+    return user.role == LEADER_ROLE and user.team_id is not None

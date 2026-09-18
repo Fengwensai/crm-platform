@@ -7,10 +7,13 @@ from ..db import Base
 
 
 class Project(Base):
-    """项目：管理员建，员工填报时选择。
+    """项目：管理员建，员工登记时选择。
 
-    unit 是「数量」的单位（条 / 张 / 个…），仅用于展示与导出表头，
-    不参与计算——不同项目单位不同，但统计时都是纯数字相加。
+    ★ `unit` 是 **v1 遗留，v2 起停用**：v2 的数量口径是 2D/3D 框数，单位恒为「框」，
+      这一列退化成了常量，而且有害——导出表头会写成「3D分割（条）」，框数写着「条」。
+      v2 已从 `schemas/project.py`、建/改项目入参、前端表单和展示里**全部移除**。
+      列本身保留不删：`DROP COLUMN` 不可逆，而留着它的成本是零。
+      新代码**不要读写它**。
     """
 
     __tablename__ = "projects"
@@ -18,7 +21,7 @@ class Project(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(128), default="")
-    unit: Mapped[str] = mapped_column(String(16), default="条")
+    unit: Mapped[str] = mapped_column(String(16), default="条")  # v1 遗留，停用，见类注释
     # active（进行中，可填报）/ archived（已归档，不再出现在填报选项里）
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
     created_at: Mapped[datetime] = mapped_column(

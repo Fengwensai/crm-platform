@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session
 
 from ..core.audit import log_action
 from ..core.deps import require_manager
+from ..core.guards import count_user_records, format_counts
 from ..core.netutil import client_ip
 from ..core.security import hash_password
 from ..db import get_db
 from ..models.user import User
-from ..models.work_record import WorkRecord
 from ..schemas.user import ReviewIn, UserOut, UserUpdateIn
 
 router = APIRouter(prefix="/api/users", tags=["账号"])
@@ -188,7 +188,11 @@ def delete_user(
     manager: User = Depends(require_manager),
     db: Session = Depends(get_db),
 ):
-    """删除账号。有填报记录的不允许删（会变孤儿数据）——应改为「停用」。"""
+    """删除账号。有任何历史数据的不允许删（会变孤儿数据）——应改为「停用」。
+
+    ★ 守卫查的是**标注 + 质检 + v1 填报**三处，见 core/guards.py。
+      只查其中一张表的话，删除会「成功」，那人名下的其它记录当场变成孤儿。
+    """
     u = db.get(User, uid)
     if u is None:
         raise HTTPException(status_code=404, detail="账号不存在")
@@ -197,11 +201,11 @@ def delete_user(
     if u.role == "super_admin":
         raise HTTPException(status_code=403, detail="不能删除超级管理员账号")
 
-    used = db.query(WorkRecord).filter(WorkRecord.user_id == uid).count()
-    if used:
+    counts = count_user_records(db, uid)
+    if counts:
         raise HTTPException(
             status_code=422,
-            detail=f"该账号已有 {used} 条填报记录，不能删除；请改为「停用」",
+            detail=f"该账号已有{format_counts(counts)}，不能删除；请改为「停用」",
         )
 
     log_action(

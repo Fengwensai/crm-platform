@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.deps import get_current_user, require_manager
+from ..core.tz import today_cn
 from ..db import get_db
 from ..models.project import Project
 from ..models.user import User
@@ -25,7 +26,7 @@ def _resolve_range(
     date_from: date | None, date_to: date | None, default_days: int = 30
 ) -> tuple[date, date]:
     if date_to is None:
-        date_to = date.today()
+        date_to = today_cn()
     if date_from is None:
         date_from = date_to - timedelta(days=default_days - 1)
     if date_from > date_to:
@@ -115,7 +116,7 @@ def trend(
     manager: User = Depends(require_manager),
     db: Session = Depends(get_db),
 ):
-    dt = date.today()
+    dt = today_cn()
     df = dt - timedelta(days=days - 1)
     points = _trend_points(db, df, dt)
     return TrendOut(
@@ -225,7 +226,7 @@ def my_stats(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    dt = date.today()
+    dt = today_cn()
     df = dt - timedelta(days=days - 1)
 
     amount, rework, day_count = (

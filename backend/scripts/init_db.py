@@ -22,7 +22,10 @@ import app.models  # noqa: E402,F401  确保所有模型注册到 Base.metadata
 
 def main() -> None:
     Base.metadata.create_all(engine)
-    print("建表完成：users / projects / work_records / audit_logs")
+    print("建表完成：" + " / ".join(sorted(Base.metadata.tables)))
+    print("（work_records 是 v1 遗留表，已停用但保留，见 models/work_record.py）")
+    print("提醒：线上已有库请改跑 scripts/migrate_v2.py —— create_all 对已存在的表是 no-op，")
+    print("      不会补新列也不会补索引，而且不报错。")
 
     with SessionLocal() as db:
         existing = db.query(User).filter(User.role == "super_admin").first()

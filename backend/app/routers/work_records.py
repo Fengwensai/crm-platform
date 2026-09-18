@@ -7,6 +7,7 @@ from ..core.audit import log_action
 from ..core.config import settings
 from ..core.deps import get_current_user, is_manager
 from ..core.netutil import client_ip
+from ..core.tz import today_cn
 from ..db import get_db
 from ..models.project import Project
 from ..models.user import User
@@ -24,7 +25,7 @@ def _assert_date_allowed(d: date) -> None:
 
     只对「改自己的数据」生效；管理者改员工数据不受此限（但会进审计日志）。
     """
-    today = date.today()
+    today = today_cn()
     if d > today:
         raise HTTPException(status_code=422, detail="不能填报未来日期")
     if d < today - timedelta(days=settings.BACKFILL_DAYS):

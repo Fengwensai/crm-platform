@@ -64,6 +64,18 @@ jobs:
           echo "===== verify_core ====="
           .venv/bin/python scripts/verify_core.py || { echo "FAIL: verify_core"; exit 1; }
 
+      # 30 条断言，**不经 HTTP**，直接验 core/scope.py 的读/写谓词语义。
+      # 与上面那条互不替代：verify_core 证明「接口表现对」，这条证明「隔断定义本身对」。
+      # 尤其那个 leader 没挂组 → 空集 的边界，端到端会假绿（库里本来就没数据，
+      # 返回空看起来和正确地锁死一模一样），只有这里把「空集」和「本该匹配上的人」
+      # 放进同一个库才测得出来。
+      - name: 隔断谓词单测（30 断言）
+        working-directory: backend
+        run: |
+          set -e
+          echo "===== verify_scope ====="
+          .venv/bin/python scripts/verify_scope.py || { echo "FAIL: verify_scope"; exit 1; }
+
   frontend:
     name: 前端构建
     runs-on: ubuntu-latest
