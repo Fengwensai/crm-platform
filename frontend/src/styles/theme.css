@@ -1,0 +1,227 @@
+/* =========================================================
+   工作量统计平台 · 深色主题
+   与方言平台后台同一套极光蓝青调（深海军蓝底 + #409eff / #00c9b0），
+   两个后台并排开着不会觉得是两个系统。
+   ========================================================= */
+
+html.dark {
+  /* 主色 */
+  --el-color-primary: #409eff;
+  --el-color-primary-dark-2: #337ecc;
+  --el-color-primary-light-3: #66b1ff;
+  --el-color-primary-light-5: #8cc5ff;
+  --el-color-primary-light-7: #b3d9ff;
+  --el-color-primary-light-8: #c6e3ff;
+  --el-color-primary-light-9: #e8f4ff;
+
+  /* 背景 */
+  --el-bg-color-page: #0a1220;
+  --el-bg-color: #141f30;
+  --el-bg-color-overlay: #1a2a3c;
+  --el-fill-color-blank: #141f30;
+  --el-fill-color: #1b2b3e;
+  --el-fill-color-light: #22344a;
+  --el-fill-color-lighter: #1e3044;
+  --el-fill-color-extra-light: #182a3e;
+  --el-fill-color-dark: #2b4058;
+  --el-fill-color-darker: #334b66;
+
+  /* 边框 */
+  --el-border-color: #2c4058;
+  --el-border-color-light: #263a52;
+  --el-border-color-lighter: #21344a;
+  --el-border-color-extra-light: #1c2c40;
+  --el-border-color-dark: #354c68;
+  --el-border-color-darker: #3e5878;
+
+  /* 文字 */
+  --el-text-color-primary: #e9f0f9;
+  --el-text-color-regular: #bdc9da;
+  --el-text-color-secondary: #8ba0b8;
+  --el-text-color-placeholder: #617693;
+  --el-text-color-disabled: #4c5f78;
+
+  --el-mask-color: rgba(10, 18, 32, 0.72);
+
+  /* 表格 */
+  --el-table-bg-color: var(--el-bg-color);
+  --el-table-tr-bg-color: var(--el-bg-color);
+  --el-table-header-bg-color: #16233a;
+  --el-table-header-text-color: var(--el-text-color-regular);
+  --el-table-row-hover-bg-color: rgba(64, 158, 255, 0.08);
+  --el-table-border-color: var(--el-border-color-lighter);
+}
+
+/* 本平台自有强调色：青绿，用于「合格率」等正向指标 */
+:root {
+  --crm-teal: #00c9b0;
+  --crm-warn: #e6a23c;
+  --crm-danger: #f56c6c;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei',
+    'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#app {
+  min-height: 100vh;
+}
+
+/* —— 滚动条 —— */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c4058;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a5578;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: rgba(64, 158, 255, 0.35);
+  color: #fff;
+}
+
+html.dark .el-card {
+  --el-card-bg-color: var(--el-bg-color);
+  border-color: var(--el-border-color-lighter);
+}
+html.dark .el-dialog {
+  --el-dialog-bg-color: #16233a;
+}
+html.dark .el-message-box {
+  --el-messagebox-bg-color: #16233a;
+}
+
+/* —— 通用小件 —— */
+.page-wrap {
+  padding: 4px 0 24px;
+}
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.page-sub {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* 统计卡 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.stat-card .k {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.stat-card .v {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-card .v.teal {
+  color: var(--crm-teal);
+}
+.stat-card .v.warn {
+  color: var(--crm-warn);
+}
+.stat-card .sub {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+/* 手绘条形图（不引 echarts，保持包体小） */
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 200px;
+  padding: 8px 4px 0;
+  overflow-x: auto;
+}
+.bars .bar-col {
+  flex: 0 0 auto;
+  min-width: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+.bars .bar-stack {
+  width: 18px;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+  background: transparent;
+}
+.bars .bar-qualified {
+  background: linear-gradient(180deg, #4fc3f7, #2b7fd4);
+}
+.bars .bar-rework {
+  background: rgba(230, 162, 60, 0.75);
+}
+.bars .bar-label {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  transform: rotate(-45deg);
+  transform-origin: center;
+}
+.bars-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 12px;
+}
+.bars-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}

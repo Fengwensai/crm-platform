@@ -1,0 +1,85 @@
+name: CI
+
+# 推 master 或开 PR 时自动跑：后端核心回归 + 前端构建。
+#
+# 与方言平台的 CI 有一处不同：这里的 verify_core.py 用 FastAPI TestClient
+# 在进程内打接口，不需要另起 uvicorn 等端口就绪，所以少一步、也快一些。
+# 用的是 CI 里一次性的 postgres 库，不碰任何真实数据。
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  backend:
+    name: 后端回归
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: 安装依赖
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: 写 CI 配置（一次性库，密钥仅测试用）
+        working-directory: backend
+        run: |
+          cat > .env <<'EOF'
+          DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+          JWT_SECRET=ci-only-test-secret-0123456789abcdef
+          ADMIN_INIT_PASSWORD=admin123
+          CORS_ORIGINS=*
+          EOF
+
+      # 42 条断言，覆盖：认证审批、填报规则、数据隔断、审计留痕、限流。
+      # 脚本自己建表、自己清理，最后还会断言"测试数据已清理干净"。
+      - name: 核心回归（42 断言）
+        working-directory: backend
+        run: |
+          set -e
+          echo "===== verify_core ====="
+          .venv/bin/python scripts/verify_core.py || { echo "FAIL: verify_core"; exit 1; }
+
+  frontend:
+    name: 前端构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: npm ci
+
+      - name: 构建
+        working-directory: frontend
+        run: npm run build

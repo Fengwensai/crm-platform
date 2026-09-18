@@ -1,0 +1,28 @@
+# 密钥与本地环境
+backend/.env
+backend/.venv/
+backend/media/
+deploy-bundle-*.tar.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+# 冒烟测试的临时 sqlite（verify_core.py 用 DATABASE_URL=sqlite:///./_smoke.db 跑）
+_smoke.db
+*.log
+
+# 部署密钥清单（服务器 /deploy-bundle/CRM_SECRETS.txt 才是权威副本）
+CRM_SECRETS.txt
+
+# 前端
+node_modules/
+frontend/dist/
+.vite/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
