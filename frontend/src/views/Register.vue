@@ -103,13 +103,18 @@ async function onSubmit() {
 </script>
 
 <style scoped>
+/* 浅色注册页，与 Login.vue 同一套处理，理由见那边的注释。
+   这两页是一对（登录页页脚那个「员工自助注册」就落到这里），
+   只翻一个的话点进去会突然变黑。
+   ★ 最容易漏的是 `.brand h1` 的白→浅蓝渐变文字：`color:transparent` 配
+     `background-clip:text` 在白底上等于把标题擦掉，必须换纯色。 */
 .reg-page {
   position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0a1220;
+  background: var(--el-bg-color-page);
   overflow: hidden;
   padding: 24px 0;
 }
@@ -122,12 +127,12 @@ async function onSubmit() {
 .aurora-a {
   width: 620px; height: 620px;
   left: -160px; top: -180px;
-  background: radial-gradient(circle, rgba(64, 158, 255, 0.30), transparent 70%);
+  background: radial-gradient(circle, rgba(64, 158, 255, 0.10), transparent 70%);
 }
 .aurora-b {
   width: 560px; height: 560px;
   right: -140px; bottom: -180px;
-  background: radial-gradient(circle, rgba(0, 201, 176, 0.22), transparent 70%);
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.10), transparent 70%);
 }
 
 .card {
@@ -135,11 +140,9 @@ async function onSubmit() {
   width: 380px;
   padding: 34px 34px 24px;
   border-radius: 18px;
-  background: rgba(20, 31, 48, 0.86);
-  -webkit-backdrop-filter: blur(14px);
-          backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 .brand {
@@ -152,8 +155,8 @@ async function onSubmit() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #409eff, #00c9b0);
-  box-shadow: 0 8px 24px rgba(64, 158, 255, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #409eff, #0d9488);
+  box-shadow: 0 8px 20px rgba(64, 158, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   margin-bottom: 14px;
 }
 .brand h1 {
@@ -161,15 +164,13 @@ async function onSubmit() {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 2px;
-  background: linear-gradient(90deg, #ffffff 20%, #bcd6ff 60%, #8fd8ff 100%);
-  -webkit-background-clip: text;
-          background-clip: text;
-  color: transparent;
+  /* 不能用渐变文字：白底 + color:transparent 会把标题擦掉 */
+  color: var(--el-text-color-primary);
 }
 .brand p {
   margin: 0;
   font-size: 12.5px;
-  color: #8ba0b8;
+  color: var(--el-text-color-secondary);
 }
 
 .submit {
@@ -177,7 +178,7 @@ async function onSubmit() {
   margin-top: 4px;
   letter-spacing: 3px;
   font-weight: 600;
-  background: linear-gradient(90deg, #409eff, #00c9b0);
+  background: linear-gradient(90deg, #409eff, #0d9488);
   border: none;
 }
 .submit:hover { opacity: 0.92; }
@@ -186,10 +187,10 @@ async function onSubmit() {
   margin-top: 18px;
   text-align: center;
   font-size: 13px;
-  color: #8ba0b8;
+  color: var(--el-text-color-secondary);
 }
 .foot a {
-  color: #66b1ff;
+  color: var(--el-color-primary);
   text-decoration: none;
 }
 .foot a:hover { text-decoration: underline; }

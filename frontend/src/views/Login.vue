@@ -67,15 +67,24 @@ async function onSubmit() {
 </script>
 
 <style scoped>
+/* 浅色登录页。
+   ★ 这里原来是 v1 的深色极光：`#0a1220` 底 + 两团高饱和模糊光斑 + 半透明深色玻璃卡。
+     整站 v2 换成浅色后它被漏掉了（`theme.css` 早就翻浅，只有这一个路由还是黑的）。
+   翻浅时最容易漏的两处，和 AppLayout 当时踩的是同一对：
+   ① `.brand h1` 的白→浅蓝渐变文字（`background-clip:text` + `color:transparent`）
+      在白底上**完全看不见**——必须换成纯色；
+   ② `.brand-mark` 那圈 `rgba(64,158,255,0.42)` 的发光投影在白底上是脏斑，要压下去。
+   品牌锚点（渐变方块 + 青绿强调色）保留：它们在浅色底上比深色底更清楚。 */
 .login-page {
   position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0a1220;
+  background: var(--el-bg-color-page);
   overflow: hidden;
 }
+/* 光斑留着，但透明度从 0.30/0.22 降到 0.10——浅底上再高就是脏斑而不是氛围 */
 .aurora {
   position: absolute;
   border-radius: 50%;
@@ -85,12 +94,12 @@ async function onSubmit() {
 .aurora-a {
   width: 620px; height: 620px;
   left: -160px; top: -180px;
-  background: radial-gradient(circle, rgba(64, 158, 255, 0.30), transparent 70%);
+  background: radial-gradient(circle, rgba(64, 158, 255, 0.10), transparent 70%);
 }
 .aurora-b {
   width: 560px; height: 560px;
   right: -140px; bottom: -180px;
-  background: radial-gradient(circle, rgba(0, 201, 176, 0.22), transparent 70%);
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.10), transparent 70%);
 }
 
 .card {
@@ -98,11 +107,11 @@ async function onSubmit() {
   width: 380px;
   padding: 36px 34px 26px;
   border-radius: 18px;
-  background: rgba(20, 31, 48, 0.86);
-  -webkit-backdrop-filter: blur(14px);
-          backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  /* 白底实心，不再需要 backdrop-filter——那层模糊是给半透明深色玻璃用的，
+     浅色下留着只会让文字发虚。 */
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 .brand {
@@ -115,8 +124,8 @@ async function onSubmit() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #409eff, #00c9b0);
-  box-shadow: 0 8px 24px rgba(64, 158, 255, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: linear-gradient(135deg, #409eff, #0d9488);
+  box-shadow: 0 8px 20px rgba(64, 158, 255, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   margin-bottom: 14px;
 }
 .brand h1 {
@@ -124,15 +133,14 @@ async function onSubmit() {
   font-size: 21px;
   font-weight: 700;
   letter-spacing: 2px;
-  background: linear-gradient(90deg, #ffffff 20%, #bcd6ff 60%, #8fd8ff 100%);
-  -webkit-background-clip: text;
-          background-clip: text;
-  color: transparent;
+  /* ★ 不能再用渐变文字：`color:transparent` + `background-clip:text` 在白底上
+     等于把标题擦掉。深色纯色就够，字重和字距已经把分量给足了。 */
+  color: var(--el-text-color-primary);
 }
 .brand p {
   margin: 0;
   font-size: 13px;
-  color: #8ba0b8;
+  color: var(--el-text-color-secondary);
   letter-spacing: 1px;
 }
 
@@ -141,7 +149,7 @@ async function onSubmit() {
   margin-top: 4px;
   letter-spacing: 4px;
   font-weight: 600;
-  background: linear-gradient(90deg, #409eff, #00c9b0);
+  background: linear-gradient(90deg, #409eff, #0d9488);
   border: none;
 }
 .submit:hover { opacity: 0.92; }
@@ -150,10 +158,10 @@ async function onSubmit() {
   margin-top: 18px;
   text-align: center;
   font-size: 13px;
-  color: #8ba0b8;
+  color: var(--el-text-color-secondary);
 }
 .foot a {
-  color: #66b1ff;
+  color: var(--el-color-primary);
   text-decoration: none;
 }
 .foot a:hover { text-decoration: underline; }

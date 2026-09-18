@@ -188,8 +188,25 @@ function onCommand(cmd) {
   background: linear-gradient(180deg, #409eff, #00c9b0);
 }
 .menu :deep(.el-menu-item .el-icon) { font-size: 17px; }
+/* 左侧菜单「用户管理」上的待审数量角标。
+   ★ Element Plus 把 `.el-badge__content` 的**绝对定位**写在 `.is-fixed` 底下
+     （`position:absolute; top:0; right:…; transform:translateY(-50%) translate(100%)`），
+     而 `.is-fixed` 只在「角标挂在一个宿主元素右上角」时才加——这里没给默认插槽，
+     所以那个 sup 是 **static inline-flex**，老老实实参与行内布局：
+     它继承了 `.el-menu-item` 的 56px 行高，被压到那一行的基线上，
+     于是角标掉到菜单项底部、看起来浮在下面那一行上（测量的实际位置是
+     item.y+33，而菜单项中线在 item.y+23）。
+   不去跟 EP 的定位逻辑缠斗（补一个假的宿主元素或手写绝对定位都更脆），
+   直接让外层盒子做 flex 容器并复位行高：角标回到菜单项的垂直中线，
+   再由 margin-left:auto 贴到右边缘。 */
 .menu-badge {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  /* 复位行高还不够：`.el-badge` 自身是 inline-block，作为 flex 子项会被
+     `align-items:center` 摆正，但它内部的 sup 仍按 line-height 排——
+     所以上面那条 line-height:1 是必需的，不是可选的。 */
 }
 .menu-badge :deep(.el-badge__content) {
   border: none;
