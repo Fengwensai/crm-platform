@@ -1,0 +1,461 @@
+/* —— 工作量登记页（标注 / 质检）——
+ *
+ * 这两页按设计稿一比一还原。**只用 `.wk-` 前缀的新类名**，不覆盖任何已有类，
+ * 所以其他页面一行都不受影响。（共用同一份视觉语言的代价，是把类名重写一遍；
+ * 而不是去改 `.stat-card` / `.el-card` 那种全局件——那会连看板、用户管理
+ * 一起改掉，而用户要的只是这两页。）
+ *
+ * 这两页也不再套 `el-card`：设计稿的卡片是「白底 + 1px 浅边框 + 12px 圆角」，
+ * el-card 自带阴影和另一套内边距，压平它要写一堆覆盖，不如直接用 div。
+ *
+ * ★ 这是**全局**样式表（不是 `<style scoped>`），所以**不能用 `:deep()`**——
+ *   它在全局作用域里不是合法选择器，整条规则会被丢弃且不报错。
+ *   压过 Element Plus 靠两点：多带一层 `.wk-*` 祖先类（提高特异性）+ 在
+ *   `main.js` 里排在 element-plus 之后（同特异性时后者胜）。改动这几个选择器
+ *   时请留意：`.el-table th.el-table__cell.is-leaf` 那条是 (0,3,1)。
+ */
+
+/* ————————————————— 页面骨架 ————————————————— */
+.wk {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+/* ————————————————— 顶部两段式 tab ————————————————— */
+/* 设计稿是「浅灰槽 + 白色选中块」的分段控件，不是 el-tabs 的下划线样式。
+   用原生 button 而不是 el-radio-group：这里控制的是**面板切换**不是取值，
+   而且 el-radio-button 的选中态是给文字染色，与设计稿的「白底 + 加粗」不同。 */
+.wk-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f2f3f5;
+  border: 1px solid #e9ebef;
+}
+.wk-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 172px;
+  height: 34px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #5c6370;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.wk-tab:hover {
+  color: #1f2329;
+}
+.wk-tab.on {
+  background: #fff;
+  color: #1f2329;
+  font-weight: 600;
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+.wk-tab .el-icon {
+  font-size: 16px;
+}
+
+/* ————————————————— 白卡片 ————————————————— */
+.wk-panel {
+  background: #fff;
+  border: 1px solid #ebeef2;
+  border-radius: 12px;
+  padding: 18px 20px 20px;
+}
+.wk-panel-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wk-hd-t {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2329;
+}
+.wk-hd-t .el-icon {
+  font-size: 17px;
+}
+
+/* 导出按钮（设计稿是个描边小按钮，不是主色按钮） */
+.wk-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #dcdfe6;
+  border-radius: 8px;
+  background: #fff;
+  color: #303133;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.wk-export:hover:not(:disabled) {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+}
+.wk-export:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ————————————————— 统计卡 ————————————————— */
+/* auto-fit + minmax(0,1fr)：4 张时四等分、3 张时三等分，同一个类不用改分支。
+   ★ 卡片只受数据范围约束，**不受下面的筛选条约束**——设计稿把卡片放在筛选条
+     上面，而「今日工作量」配上「开始日期 = 上个月」本就自相矛盾。 */
+.wk-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 14px;
+}
+.wk-card {
+  min-height: 88px;
+  border-radius: 12px;
+  padding: 15px 18px 17px;
+  border: 1px solid transparent;
+  /* ★ 本仓**没有**全局 `box-sizing: border-box` 重置（Element Plus 只给自己的
+     组件设，`<button>` 则是浏览器 UA 样式自带）。所以这里的 min-height 若不
+     声明 border-box，指的是**内容盒**高 88px，加上上下内边距和边框真高 122px——
+     比设计稿的 88 高出整整一截，四张卡一起胖一圈。除本类外，`.wk-` 里只有
+     `.wk-panel` / `.wk-form-box` 带内边距，它们不设高度，故不受影响。 */
+  box-sizing: border-box;
+}
+.wk-card .k {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.wk-card .v {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+/* 范围小字（本人 / 本组 / 全公司）。设计稿没有这一项，但少了它，
+   「总工作量」到底是我一个人的还是全公司的就没有答案——而这恰恰是本平台的
+   核心语义（见 README 的「三条核心需求」）。做成标签尾部一小截淡水印，
+   不新增行、不改变卡片尺寸。 */
+.wk-card .k em {
+  font-style: normal;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.wk-card.c-green  { background: #e9f7ef; border-color: #cdecdb; }
+.wk-card.c-green  .k { color: #4e8f6d; }
+.wk-card.c-green  .v { color: #2f9e6e; }
+.wk-card.c-blue   { background: #eaf1fd; border-color: #cfe0f8; }
+.wk-card.c-blue   .k { color: #5b7bab; }
+.wk-card.c-blue   .v { color: #3b82f6; }
+.wk-card.c-amber  { background: #fdf4dd; border-color: #f3e3b6; }
+.wk-card.c-amber  .k { color: #9a7a2c; }
+.wk-card.c-amber  .v { color: #d99a2b; }
+.wk-card.c-purple { background: #f4edfd; border-color: #e0d3f8; }
+.wk-card.c-purple .k { color: #7f66b8; }
+.wk-card.c-purple .v { color: #8b5cf6; }
+.wk-card.c-red    { background: #fdeceb; border-color: #f8d5d3; }
+.wk-card.c-red    .k { color: #b06a67; }
+.wk-card.c-red    .v { color: #e5484d; }
+
+/* ————————————————— 筛选条 ————————————————— */
+/* flex，**每行固定 4 个**（与设计稿一致）。
+   用 `calc(25% - 15px)` 而不是一个像素基准（如 `1 1 240px`）：像素基准下
+   「一行放得下几个」随容器宽度变——1366 的屏放 4 个、1920 的屏会放 5 个，
+   同一张设计稿在不同电脑上长得不一样。百分比基准把每行个数钉死，
+   而 `flex-grow: 1` 保证最后一行排不满时控件会**撑满**（grid 做不到这点，
+   它会留下空白格，看起来像少了一个控件）。
+   `- 15px` 是让 4 个的基准加起来恰好等于容器宽减去 3 个 gap。 */
+.wk-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 20px;
+}
+.wk-field {
+  flex: 1 1 calc(25% - 15px);
+  min-width: 150px;
+  /* EP 的输入框/下拉高度都取这个变量，改它比逐个去压 min-height 干净 */
+  --el-component-size: 36px;
+}
+.wk-field.full {
+  flex: 1 1 100%;
+}
+.wk-lb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 7px;
+  font-size: 13px;
+  color: #4b5563;
+}
+.wk-lb .el-icon {
+  font-size: 14px;
+  color: #6b7280;
+}
+.wk-field .el-input__wrapper,
+.wk-field .el-select__wrapper {
+  min-height: 36px;
+  border-radius: 8px;
+}
+/* EP 给这几个控件写了**固定宽度**，不覆盖的话它们会缩在字段左边：
+   `.el-select{width:100px}`、`.el-date-editor.el-input__wrapper{width:220px}`（都是 (0,1,0) 或
+   (0,2,0) 级）。设计稿里每个控件都撑满自己的那一格。 */
+.wk-field .el-select,
+.wk-field .el-date-editor,
+.wk-field .el-input {
+  width: 100%;
+  margin-right: 0;
+}
+
+/* ————————————————— 表格 ————————————————— */
+.wk-table {
+  --el-table-border-color: transparent;
+  --el-table-header-bg-color: #fff;
+  --el-table-header-text-color: #6b7280;
+  --el-table-text-color: #303133;
+  --el-table-row-hover-bg-color: #f8fafc;
+}
+/* EP 会给整张表补一条底边线（`.el-table__inner-wrapper::before`），设计稿没有 */
+.wk-table .el-table__inner-wrapper::before {
+  display: none;
+}
+/* 多带一层 `.wk-table`：EP 把表头这条线交给
+   `.el-table th.el-table__cell.is-leaf`，那是 (0,3,1)，而上面又把
+   --el-table-border-color 设成了透明——选择器不够具体的话，表头下面那条线
+   会「被透明掉」，表格看起来像没画完 */
+.wk-table .el-table__header th.el-table__cell {
+  background: #fff;
+  font-weight: 400;
+  font-size: 13px;
+  padding: 9px 0;
+  border-bottom: 1px solid #ebeef2;
+}
+.wk-table .el-table__body td.el-table__cell {
+  font-size: 13.5px;
+  /* 14px 上下内边距 → 单行行高约 53px，与设计稿的量出来的行距一致。
+     比这个数小的话表格会显得「挤成一块」，设计稿的行间留白是它阅读性的主要来源 */
+  padding: 14px 0;
+  border-bottom: 1px solid #f2f3f5;
+}
+/* 表头也带颜色（设计稿里「2D框数」是蓝的、「3D框数」是绿的，与列内数字同色）。
+   用 label-class-name 挂到 th 上——align="right" 那套只作用于对齐，不作用于颜色。
+   多带 .wk-table 和 .el-table__header 是为了压过
+   `.el-table th.el-table__cell { color: var(--el-table-header-text-color) }`（(0,2,1)）。 */
+.wk-table .el-table__header th.wk-hd-blue > .cell {
+  color: #4a90e2;
+}
+.wk-table .el-table__header th.wk-hd-green > .cell {
+  color: #2fa06a;
+}
+
+/* 表头数值列的对齐：EP 的 align 会同时作用于表头和表体，而设计稿里
+   「2D框数」表头是和列内数字一样右对齐的，所以这里不用额外覆盖——写下来
+   是提醒后来者别把它改成 header-align="left"。 */
+
+/* 数值列的颜色：条目号琥珀、2D 蓝、3D 绿（与设计稿一致，也与看板那两根柱同色） */
+.wk-amber { color: #d99a2b; }
+.wk-blue  { color: #4a90e2; }
+.wk-green { color: #2fa06a; }
+.wk-dim   { color: #c0c4cc; }
+
+/* 质检结论的实心药丸 */
+.wk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12.5px;
+}
+.wk-pill .el-icon {
+  font-size: 13px;
+}
+.wk-pill.pass   { background: #2fa06a; }
+.wk-pill.reject { background: #e5484d; }
+
+/* 行内小标记（疑似重复 / 已被修改 / 我检的·被检的）。
+   设计稿没有这几列——它们是「这条记录是不是我做的」「同一天同条目号还有没有
+   第二条」这类**不标出来就会被读错**的信息：质检列表是「我检的 ∪ 被检人在我
+   范围内的」并集，没有来源标记的话，组长会以为自己做过别组的那些质检。
+   所以保留，但压到最小：无边框、浅色字，不跟正文抢注意力。 */
+.wk-mark {
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.wk-mark.dup   { color: #d99a2b; }
+.wk-mark.warn  { color: var(--crm-warn); }
+.wk-mark.plain { color: #909399; }
+button.wk-mark {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+button.wk-mark:hover {
+  text-decoration: underline;
+}
+
+.wk-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+/* ————————————————— 登记表单 ————————————————— */
+.wk-form-box {
+  border: 1px solid #ebeef2;
+  border-radius: 12px;
+  padding: 22px 26px 26px;
+  background: #fff;
+}
+.wk-form-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+.wk-form-title .el-icon {
+  font-size: 18px;
+  color: #2fa06a;
+}
+
+/* 表单网格：与筛选条同款，但**每行固定 3 个**。
+   于是质检表单自然长成设计稿的「上三下二」——上一行三个等宽，
+   下一行的条目号与质检结果各撑到一半（flex-grow 把它们拉满）。 */
+.wk-form-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 20px;
+  --el-component-size: 40px;
+}
+.wk-form-fields .el-form-item {
+  flex: 1 1 calc(33.333% - 14px);
+  min-width: 170px;
+  margin-bottom: 0;
+}
+.wk-form-fields .el-form-item.full {
+  flex: 1 1 100%;
+}
+/* 多带一层 .wk-form-box（(0,3,0)）压过 EP 的
+   `.el-form-item--default .el-form-item__label{(0,2,0)}`：那一条把标签写死了
+   32px 高、32px 行高，而设计稿的标签是「图标 + 文字」的一行小字 */
+.wk-form-box .wk-form-fields .el-form-item__label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: auto;
+  padding: 0 0 7px;
+  line-height: 1.4;
+  font-size: 13.5px;
+  color: #374151;
+  box-sizing: border-box;
+}
+.wk-form-box .wk-form-fields .el-form-item__label .el-icon {
+  font-size: 14px;
+}
+/* 必填星号：EP 默认打在标签**前面**（`::before`），设计稿是打在后面。
+   把它的去掉、自己补一个在尾部——中文标签里读起来才是「被质检人员 *」
+   而不是「* 被质检人员」。 */
+.wk-form-box .wk-form-fields .el-form-item.is-required > .el-form-item__label::before {
+  content: none;
+}
+.wk-form-box .wk-form-fields .el-form-item.is-required > .el-form-item__label::after {
+  content: "*";
+  color: var(--el-color-danger);
+  margin-left: 1px;
+}
+.wk-form-fields .el-input__wrapper,
+.wk-form-fields .el-select__wrapper {
+  min-height: 40px;
+  border-radius: 8px;
+}
+.wk-form-fields .el-form-item__content {
+  min-width: 0;
+}
+/* 同 .wk-field：EP 的固定宽度（下拉 100px、日期 220px、数字框 150px）会把
+   控件缩在格子左边，而设计稿里它们各自撑满一格 */
+.wk-form-fields .el-select,
+.wk-form-fields .el-date-editor,
+.wk-form-fields .el-input,
+.wk-form-fields .el-input-number {
+  width: 100%;
+  margin-right: 0;
+}
+/* EP 的数字输入框默认把数字**居中**（它假设左右有加减按钮）。
+   这里去掉了按钮，居中的数字和旁边那些左对齐的输入框看起来像两套控件。 */
+.wk-form-fields .el-input-number .el-input__inner {
+  text-align: left;
+}
+
+/* 「合计框数 / 通过率」那一行：左标签、右数值的浅色条 */
+.wk-calc {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid #ebeef2;
+  border-radius: 8px;
+  background: #fafbfc;
+  font-size: 13.5px;
+  color: #6b7280;
+}
+.wk-calc .note {
+  font-size: 12.5px;
+  color: #a0a4ad;
+}
+.wk-calc b {
+  font-size: 18px;
+  color: #1f2329;
+  font-variant-numeric: tabular-nums;
+}
+.wk-calc b.ok   { color: #2fa06a; }
+.wk-calc b.bad  { color: #e5484d; }
+.wk-calc b.mute { color: #a0a4ad; }
+
+/* 整行大按钮（设计稿是个胶囊形通栏） */
+.wk-save {
+  flex: 1 1 100%;
+  width: 100%;
+  height: 48px;
+  border-radius: 999px;
+  font-size: 15px;
+}
+.wk-save .el-icon {
+  margin-right: 6px;
+}
+.wk-foot-tip {
+  flex: 1 1 100%;
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #909399;
+}

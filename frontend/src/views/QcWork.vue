@@ -1,188 +1,238 @@
 <template>
-  <div class="page-wrap">
-    <div class="stat-grid three">
-      <div class="stat-card">
-        <div class="k">质检记录数 <span class="scope">{{ summary.scope_label }}</span></div>
-        <div class="v">{{ num(summary.total) }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="k">通过</div>
-        <div class="v teal">
-          {{ num(summary.passed) }}
-          <span v-if="summary.total" class="pct">{{ pct(summary.passed, summary.total) }}</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="k">打回</div>
-        <div class="v danger">
-          {{ num(summary.rejected) }}
-          <span v-if="summary.total" class="pct">{{ pct(summary.rejected, summary.total) }}</span>
-        </div>
-      </div>
+  <div class="wk">
+    <div class="wk-tabs">
+      <button class="wk-tab" :class="{ on: tab === 'form' }" @click="tab = 'form'">
+        <el-icon><CircleCheck /></el-icon>登记质检
+      </button>
+      <button class="wk-tab" :class="{ on: tab === 'list' }" @click="tab = 'list'">
+        <el-icon><List /></el-icon>质检记录
+      </button>
     </div>
 
-    <el-card shadow="never">
-      <el-tabs v-model="tab">
-        <!-- ————— 登记 ————— -->
-        <el-tab-pane label="质检登记" name="form">
-          <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" style="max-width: 560px">
-            <el-form-item label="被质检人员" prop="target_user_id">
-              <!-- ★ 这里用的是**全公司**名单（`?all=true`）。员工之间互相质检是常态，
-                   跨组也会有。若按登录者的数据范围收窄，员工的下拉里只剩他自己，
-                   而「不能质检自己」又会拦掉那一条——整个页面填不出东西。 -->
-              <el-select v-model="form.target_user_id" placeholder="选择被质检的同事" filterable style="width: 100%">
-                <el-option v-for="u in targets" :key="u.id" :label="optionLabel(u)" :value="u.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="项目" prop="project_id">
-              <el-select v-model="form.project_id" placeholder="选择项目" style="width: 100%">
-                <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="日期" prop="qc_date">
-              <el-date-picker v-model="form.qc_date" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-            </el-form-item>
-            <el-form-item label="条目号">
-              <el-input
-                v-model="form.item_no"
-                maxlength="64"
-                placeholder="如 A-001、007"
-                @input="scheduleRate"
-                @blur="loadRate"
-              />
-            </el-form-item>
-            <el-form-item label="通过率（自动计算）">
-              <!-- ★ 「0 条 → 0.0%」是**服务端**算的（空表单也会返回 200 而不是 422），
-                   前端不做 `total ? x : 0`。那种写法每个调用点都要记得写一次，漏一个就是 NaN%。 -->
-              <div class="rate-box">
-                <b :class="rateState.cls">{{ rateState.text }}</b>
-                <span v-if="rate.total" class="dim">
-                  （该条目历史 {{ rate.total }} 条：通过 {{ rate.passed }} / 打回 {{ rate.rejected }}）
-                </span>
-                <span v-else class="dim">（该项目下这个条目号还没有历史记录）</span>
-              </div>
-            </el-form-item>
-            <el-form-item label="结论" prop="result">
-              <el-radio-group v-model="form.result">
-                <el-radio-button value="pass">通过</el-radio-button>
-                <el-radio-button value="reject">打回</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" maxlength="255" show-word-limit placeholder="打回时建议写明原因" />
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" :loading="saving" @click="onSubmit">提交登记</el-button>
-              <el-button @click="resetForm">清空</el-button>
-            </el-form-item>
-            <div class="foot-tip">
-              质检人恒为你自己，不提供代填——质检记录的内容就是「我看了这份活」。
-            </div>
-          </el-form>
-        </el-tab-pane>
+    <!-- ————— 登记 ————— -->
+    <div v-if="tab === 'form'" class="wk-panel">
+      <div class="wk-hd-t" style="margin-bottom: 14px">质检工作量填报</div>
+      <div class="wk-form-box">
+        <div class="wk-form-title"><el-icon><CircleCheckFilled /></el-icon>填报质检工作量</div>
 
-        <!-- ————— 记录 ————— -->
-        <el-tab-pane label="质检记录" name="list">
-          <div class="filters">
-            <el-date-picker
-              v-model="dateRange"
-              type="daterange"
-              value-format="YYYY-MM-DD"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              size="small"
-              style="width: 250px"
-              @change="reload"
-            />
-            <el-select v-model="projectId" placeholder="全部项目" clearable size="small" style="width: 150px" @change="reload">
+        <el-form ref="formRef" class="wk-form-fields" :model="form" :rules="rules" label-position="top">
+          <el-form-item prop="target_user_id">
+            <template #label><el-icon><User /></el-icon>被质检人员</template>
+            <!-- ★ 这里用的是**全公司**名单（`?all=true`）。员工之间互相质检是常态，
+                 跨组也会有。若按登录者的数据范围收窄，员工的下拉里只剩他自己，
+                 而「不能质检自己」又会拦掉那一条——整个页面填不出东西。 -->
+            <el-select v-model="form.target_user_id" placeholder="请选择被质检人员" filterable>
+              <el-option v-for="u in targets" :key="u.id" :label="optionLabel(u)" :value="u.id" />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item prop="project_id">
+            <template #label><el-icon><OfficeBuilding /></el-icon>质检项目</template>
+            <el-select v-model="form.project_id" placeholder="请选择项目">
               <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
             </el-select>
-            <!-- 来源：列表是**并集**（我检的 ∪ 被检人在我范围内的），
-                 不显式分开的话用户会以为「这些全是我做的」。 -->
-            <el-select v-model="source" clearable placeholder="全部来源" size="small" style="width: 130px" @change="reload">
-              <el-option label="我检的" value="mine" />
-              <el-option label="被检的" value="theirs" />
-            </el-select>
-            <el-select v-model="result" clearable placeholder="全部结论" size="small" style="width: 120px" @change="reload">
+          </el-form-item>
+
+          <el-form-item prop="qc_date">
+            <template #label><el-icon><Calendar /></el-icon>质检日期</template>
+            <el-date-picker v-model="form.qc_date" type="date" value-format="YYYY-MM-DD" format="YYYY年MM月DD日" placeholder="选择日期" />
+          </el-form-item>
+
+          <!-- 条目号和结论各占半行（设计稿就是「上三下二」，
+               这两项是这条记录真正的正文，给它们更宽的位置） -->
+          <el-form-item prop="item_no">
+            <template #label><el-icon><CircleCheck /></el-icon>条目号</template>
+            <el-input
+              v-model="form.item_no"
+              maxlength="64"
+              placeholder="请输入条目号"
+              @input="scheduleRate"
+              @blur="loadRate"
+            />
+          </el-form-item>
+
+          <el-form-item prop="result">
+            <template #label><el-icon><CircleCheck /></el-icon>质检结果</template>
+            <el-select v-model="form.result" placeholder="请选择质检结果">
               <el-option label="通过" value="pass" />
               <el-option label="打回" value="reject" />
             </el-select>
-            <!-- 两个「人」的筛选用**两个独立下拉**，不合并成一个。
-                 一张质检表上有两个角色，一个笼统的「人员」下拉迟早被解释成另一端
-                 ——两种解释查出来的行完全不同，而且都不会报错。 -->
-            <el-select v-if="auth.seesOthers" v-model="inspectorId" clearable filterable placeholder="质检人" size="small" style="width: 140px" @change="reload">
-              <el-option v-for="u in people" :key="u.id" :label="u.name" :value="u.id" />
-            </el-select>
-            <el-select v-if="auth.seesOthers" v-model="targetId" clearable filterable placeholder="被质检人员" size="small" style="width: 150px" @change="reload">
-              <el-option v-for="u in people" :key="u.id" :label="u.name" :value="u.id" />
-            </el-select>
-            <el-button size="small" :icon="Refresh" @click="reload">刷新</el-button>
-            <div class="spacer"></div>
-            <span class="hint">共 {{ total }} 条</span>
-            <el-button size="small" :icon="Download" :loading="exporting" @click="onExport">导出 CSV</el-button>
+          </el-form-item>
+
+          <!-- ★ 「0 条 → 0.0%」是**服务端**算的（空表单也会返回 200 而不是 422），
+               前端不做 `total ? x : 0`。那种写法每个调用点都要记得写一次，
+               漏一个就是 NaN%。 -->
+          <div class="wk-calc">
+            <span>
+              通过率（自动计算）
+              <span v-if="rate.total" class="note">
+                该条目历史 {{ rate.total }} 条：通过 {{ rate.passed }} / 打回 {{ rate.rejected }}
+              </span>
+              <span v-else class="note">该项目下这个条目号还没有历史记录</span>
+            </span>
+            <b :class="rateState.cls">{{ rateState.text }}</b>
           </div>
 
-          <el-table :data="rows" v-loading="loading" stripe empty-text="没有符合条件的记录">
-            <el-table-column prop="qc_date" label="日期" width="112" />
-            <el-table-column label="质检人" width="110">
-              <template #default="{ row }">
-                {{ row.inspector_name }}
-                <div v-if="row.mine" class="dim" style="font-size: 12px">我自己</div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="target_name" label="被质检人员" width="110" />
-            <el-table-column prop="project_name" label="项目" min-width="110" />
-            <el-table-column label="条目号" width="105">
-              <template #default="{ row }">
-                <span v-if="row.item_no">{{ row.item_no }}</span>
-                <span v-else class="dim">—</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="结论" width="86">
-              <template #default="{ row }">
-                <el-tag :type="row.result === 'pass' ? 'success' : 'danger'" size="small" effect="light">
-                  {{ row.result === 'pass' ? '通过' : '打回' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="来源" width="80">
-              <template #default="{ row }">
-                <span class="mini-tag" :class="row.mine ? 'mine' : 'other'">{{ row.mine ? '我检的' : '被检的' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="备注" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span v-if="row.remark">{{ row.remark }}</span>
-                <span v-else class="dim">—</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="标记" width="110">
-              <template #default="{ row }">
-                <button v-if="row.edited_by_manager" class="mini-tag warn link" @click="openHistory(row)">已被修改</button>
-                <span v-else class="dim">—</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" size="small" @click="openEdit(row)">修改</el-button>
-                <el-button link type="danger" size="small" @click="onDelete(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <el-form-item class="full">
+            <template #label>备注（可选）</template>
+            <el-input v-model="form.remark" maxlength="255" placeholder="添加备注信息..." />
+          </el-form-item>
 
+          <p class="wk-foot-tip">质检人恒为你自己，不提供代填——质检记录的内容就是「我看了这份活」。</p>
+
+          <el-button class="wk-save" type="primary" :loading="saving" @click="onSubmit">
+            <el-icon><Check /></el-icon>保存质检记录
+          </el-button>
+        </el-form>
+      </div>
+    </div>
+
+    <!-- ————— 记录 ————— -->
+    <template v-else>
+      <div class="wk-cards">
+        <div class="wk-card c-blue">
+          <div class="k">总记录数 <em>{{ summary.scope_label }}</em></div>
+          <div class="v">{{ num(summary.total) }}</div>
+        </div>
+        <div class="wk-card c-green">
+          <div class="k">通过记录</div>
+          <div class="v">{{ num(summary.passed) }}</div>
+        </div>
+        <div class="wk-card c-red">
+          <div class="k">打回记录</div>
+          <div class="v">{{ num(summary.rejected) }}</div>
+        </div>
+      </div>
+
+      <div class="wk-panel">
+        <div class="wk-panel-hd">
+          <span class="wk-hd-t"><el-icon><Filter /></el-icon>筛选条件</span>
+          <button class="wk-export" :disabled="exporting" @click="onExport">
+            <el-icon><Download /></el-icon>{{ exporting ? '导出中…' : '导出' }}
+          </button>
+        </div>
+
+        <div class="wk-fields">
+          <label class="wk-field">
+            <span class="wk-lb"><el-icon><User /></el-icon>被质检人员</span>
+            <el-select v-model="fTarget" placeholder="全部人员" clearable filterable @change="reload">
+              <el-option v-for="u in people" :key="u.id" :label="u.name" :value="u.id" />
+            </el-select>
+          </label>
+
+          <label class="wk-field">
+            <span class="wk-lb"><el-icon><OfficeBuilding /></el-icon>质检项目</span>
+            <el-select v-model="fProject" placeholder="全部项目" clearable @change="reload">
+              <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+            </el-select>
+          </label>
+
+          <label class="wk-field">
+            <span class="wk-lb"><el-icon><Calendar /></el-icon>开始日期</span>
+            <el-date-picker v-model="fFrom" type="date" value-format="YYYY-MM-DD" format="YYYY年MM月DD日" placeholder="选择开始日期" @change="reload" />
+          </label>
+          <label class="wk-field">
+            <span class="wk-lb"><el-icon><Calendar /></el-icon>结束日期</span>
+            <el-date-picker v-model="fTo" type="date" value-format="YYYY-MM-DD" format="YYYY年MM月DD日" placeholder="选择结束日期" @change="reload" />
+          </label>
+
+          <!-- 上面一排与设计稿一致。下面几个是这张表**非做不可**的筛选项：
+               质检表上有两个人，「谁检的」和「检了谁」是两件事，
+               合成一个笼统的「人员」下拉，迟早被解释成另一端——
+               两种解释查出来的行完全不同，而且都不会报错。 -->
+          <label v-if="auth.seesOthers" class="wk-field">
+            <span class="wk-lb"><el-icon><User /></el-icon>质检人</span>
+            <el-select v-model="fInspector" placeholder="全部质检人" clearable filterable @change="reload">
+              <el-option v-for="u in people" :key="u.id" :label="u.name" :value="u.id" />
+            </el-select>
+          </label>
+
+          <!-- 「来源」只给看不到别人的人：他的列表是「我检的 ∪ 我被他检的」并集，
+               没有这一项就分不开这两半。管理者有上面两个下拉，自己就是其中一项，
+               再给一个「来源」纯属重复。 -->
+          <label v-if="!auth.seesOthers" class="wk-field">
+            <span class="wk-lb">来源</span>
+            <el-select v-model="fSource" placeholder="全部来源" clearable @change="reload">
+              <el-option label="我检的" value="mine" />
+              <el-option label="我被检的" value="theirs" />
+            </el-select>
+          </label>
+
+          <label class="wk-field">
+            <span class="wk-lb">质检结果</span>
+            <el-select v-model="fResult" placeholder="全部结果" clearable @change="reload">
+              <el-option label="通过" value="pass" />
+              <el-option label="打回" value="reject" />
+            </el-select>
+          </label>
+        </div>
+      </div>
+
+      <div class="wk-panel">
+        <div class="wk-panel-hd">
+          <span class="wk-hd-t">质检记录列表</span>
+        </div>
+
+        <el-table class="wk-table" :data="rows" v-loading="loading" empty-text="没有符合条件的记录">
+          <el-table-column prop="qc_date" label="日期" width="128" />
+          <!-- 设计稿没有这一列，但本列表是并集、管理者还能看全公司，
+               不写质检人的话没人知道这条是谁做的。 -->
+          <!-- 「我检的」做成同行小尾巴，不做第二行：做成块级元素的话，
+               我自己做的那些行会比别人高一倍，行高参差看起来像渲染坏了。 -->
+          <el-table-column label="质检人" width="132">
+            <template #default="{ row }">
+              {{ row.inspector_name }}<span v-if="row.mine" class="wk-dim" style="font-size: 12px"> · 我检的</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="target_name" label="被质检人员" width="128" />
+          <!-- 项目固定宽、备注吃剩余。理由同 AnnotationWork：
+               两个都给 min-width 会让短项目名占掉比备注还宽的地方 -->
+          <el-table-column prop="project_name" label="项目" width="190" />
+          <el-table-column label="条目号" width="110" align="center">
+            <template #default="{ row }">
+              <span v-if="row.item_no" class="wk-amber">{{ row.item_no }}</span>
+              <span v-else class="wk-dim">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="质检结果" width="112">
+            <template #default="{ row }">
+              <span class="wk-pill" :class="row.result === 'pass' ? 'pass' : 'reject'">
+                <el-icon><CircleCheck v-if="row.result === 'pass'" /><CircleClose v-else /></el-icon>
+                {{ row.result === 'pass' ? '通过' : '打回' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.remark">{{ row.remark }}</span>
+              <span v-else class="wk-dim">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="标记" width="96">
+            <template #default="{ row }">
+              <button v-if="row.edited_by_manager" class="wk-mark warn" @click="openHistory(row)">已被修改</button>
+              <span v-else class="wk-dim">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="92">
+            <template #default="{ row }">
+              <el-button link type="primary" :icon="Edit" @click="openEdit(row)" />
+              <el-button link type="danger" :icon="Delete" @click="onDelete(row)" />
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="total > pageSize" class="wk-pager">
           <el-pagination
-            v-if="total > pageSize"
             v-model:current-page="page"
             :page-size="pageSize"
             :total="total"
             layout="prev, pager, next, total"
-            style="margin-top: 12px; justify-content: flex-end"
             @current-change="load"
           />
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
+        </div>
+      </div>
+    </template>
 
     <!-- 修改弹窗：只有条目号 / 结论 / 备注。
          ★ 服务端不接受改被质检人、质检人、项目、日期——前两个是**归属**
@@ -231,7 +281,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Refresh } from '@element-plus/icons-vue'
+import {
+  Calendar, Check, CircleCheck, CircleCheckFilled, CircleClose, Delete, Download,
+  Edit, Filter, List, OfficeBuilding, User,
+} from '@element-plus/icons-vue'
 import request from '../api/request'
 import { useAuthStore } from '../stores/auth'
 import { usePersistedFilters } from '../composables/usePersistedFilters'
@@ -251,31 +304,37 @@ const exporting = ref(false)
 const summary = ref({ total: 0, passed: 0, rejected: 0, scope_label: '' })
 const rate = ref({ total: 0, passed: 0, rejected: 0, rate: 0 })
 
-// ★ 必须**解构成顶层 ref**，不能 `const f = usePersistedFilters(...)` 再用 `f.dateRange`：
+// ★ 必须**解构成顶层 ref**，不能 `const f = usePersistedFilters(...)` 再用 `f.fProject`：
 //   放进对象再取的话模板不会自动解包，`v-model` 会绑到 ref 对象本身——
-//   表现为「选了日期但筛选没生效」，而且全程不报错。
-const { dateRange, projectId, source, result, inspectorId, targetId } = usePersistedFilters('qc-filters-v1', {
-  dateRange: null,
-  projectId: null,
-  source: null,
-  result: null,
-  inspectorId: null,
-  targetId: null,
-})
+//   表现为「选了但筛选没生效」，而且全程不报错。
+//
+// ★ 日期**不持久化**：记住一个过去的区间，下次进来就是一张空表，
+//   而页面上没有任何地方提示「你上次筛过日期」。与操作留痕页同一个理由。
+const { fTarget, fProject, fInspector, fSource, fResult, fFrom, fTo } = usePersistedFilters(
+  'qc-filters-v2',
+  { fTarget: null, fProject: null, fInspector: null, fSource: null, fResult: null, fFrom: null, fTo: null }
+)
 // ★ `page` 刻意**不持久化**——刷新回第 1 页。记住页码的话，用户改完数据再刷新
 //   会落在一个可能已不存在的页上，看到一张空表却没有任何解释。
 const page = ref(1)
 const pageSize = 50
 
 const formRef = ref()
+// ★ `result` 和 `item_no` **故意不给默认值**（设计稿上这两个都是空下拉 / 空输入）。
+//   `result` 给个默认 'pass' 会让「打回」多一次点击，看着像体贴；但质检员连点
+//   几十条时漏改一次，就静默记成了一条「通过」——数据里看不出来，因为它长得
+//   和正常的通过一模一样。空着 + 必填校验，漏选会当场报错，不会变成错数据。
+//   服务端仍允许 `item_no` 为空字符串（标注侧条目号本就可留空），这里只是前端
+//   收紧：`(project_id, "")` 会把所有没填条目号的质检聚成同一个通过率桶。
 const form = reactive({
-  target_user_id: null, project_id: null, qc_date: today(), item_no: '', result: 'pass', remark: '',
+  target_user_id: null, project_id: null, qc_date: today(), item_no: '', result: null, remark: '',
 })
 const rules = {
   target_user_id: [{ required: true, message: '请选择被质检人员', trigger: 'change' }],
   project_id: [{ required: true, message: '请选择项目', trigger: 'change' }],
   qc_date: [{ required: true, message: '请选择日期', trigger: 'change' }],
-  result: [{ required: true, message: '请选择结论', trigger: 'change' }],
+  item_no: [{ required: true, message: '请填写条目号', trigger: 'blur' }],
+  result: [{ required: true, message: '请选择结果', trigger: 'change' }],
 }
 
 const dlgVisible = ref(false)
@@ -295,10 +354,6 @@ function today() {
 function num(n) {
   return (n ?? 0).toLocaleString('zh-CN')
 }
-function pct(part, whole) {
-  if (!whole) return ''
-  return `${((part / whole) * 100).toFixed(1)}%`
-}
 function optionLabel(u) {
   return u.team_name ? `${u.name}（${u.team_name}）` : u.name
 }
@@ -307,30 +362,31 @@ function optionLabel(u) {
 // 与其让用户选完再被打回来，不如一开始就不给这一项。
 const targets = computed(() => people.value.filter((u) => u.id !== auth.user?.id))
 
+// 百分比取整（设计稿上写的就是「0%」）。一位小数在通过率上是假精度：
+// 3 次质检最多也就能分辨到 33%，67% 和 66.7% 给读者的信息量完全一样，
+// 却让这个数字看起来比它的样本量更可信。
 const rateState = computed(() => {
   const r = rate.value
-  // 历史条数太少时把百分比压暗并加一句说明：1/1 = 100% 看起来像「这个条目质量很好」，
+  // 历史条数太少时把百分比压暗：1/1 = 100% 看起来像「这个条目质量很好」，
   // 实际只是「只检过一次」。数据量不写出来的话，读者会过度解读。
-  if (!r.total) return { text: '0.0%', cls: 'dim' }
-  const cls = r.rate >= 0.9 ? 'teal' : r.rate < 0.6 ? 'danger' : ''
-  return { text: `${(r.rate * 100).toFixed(1)}%`, cls }
+  if (!r.total) return { text: '0%', cls: 'mute' }
+  const cls = r.rate >= 0.9 ? 'ok' : r.rate < 0.6 ? 'bad' : ''
+  return { text: `${Math.round(r.rate * 100)}%`, cls }
 })
 
 function queryParams() {
   const p = {}
-  if (dateRange.value?.length === 2) {
-    p.date_from = dateRange.value[0]
-    p.date_to = dateRange.value[1]
-  }
-  if (projectId.value) p.project_id = projectId.value
-  if (result.value) p.result = result.value
+  if (fFrom.value) p.date_from = fFrom.value
+  if (fTo.value) p.date_to = fTo.value
+  if (fProject.value) p.project_id = fProject.value
+  if (fResult.value) p.result = fResult.value
   // 「来源」两个选项分别落到服务端的两个独立参数上。
   // 服务端没有笼统的 user_id，这里也就不用为它造一个。
-  if (source.value === 'mine') p.inspector_id = auth.user?.id
-  if (source.value === 'theirs') p.target_user_id = auth.user?.id
+  if (fSource.value === 'mine') p.inspector_id = auth.user?.id
+  if (fSource.value === 'theirs') p.target_user_id = auth.user?.id
   // 显式的两个人筛选优先于「来源」快捷项（两者同时给会是 AND，此处按更精确的那个来）
-  if (inspectorId.value) p.inspector_id = inspectorId.value
-  if (targetId.value) p.target_user_id = targetId.value
+  if (fInspector.value) p.inspector_id = fInspector.value
+  if (fTarget.value) p.target_user_id = fTarget.value
   return p
 }
 
@@ -424,7 +480,7 @@ function resetForm() {
     target_user_id: form.target_user_id,
     project_id: form.project_id,
     qc_date: form.qc_date,
-    item_no: '', result: 'pass', remark: '',
+    item_no: '', result: null, remark: '',
   })
   loadRate()
 }
@@ -491,46 +547,3 @@ onMounted(async () => {
   await Promise.all([load(), loadSummary(), loadRate()])
 })
 </script>
-
-<style scoped>
-.filters {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.spacer { flex: 1; }
-.hint { font-size: 12px; color: var(--el-text-color-secondary); }
-.teal { color: var(--crm-teal); }
-.danger { color: var(--crm-danger); }
-.dim { color: var(--el-text-color-placeholder); }
-.pct {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--el-text-color-secondary);
-  margin-left: 6px;
-}
-.scope {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  background: var(--el-fill-color);
-  border-radius: 4px;
-  padding: 0 5px;
-  margin-left: 2px;
-}
-.rate-box { line-height: 22px; }
-.rate-box b { font-size: 17px; }
-.foot-tip {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.6;
-  margin-left: 110px;
-}
-/* 「已被修改」是个按钮（点开看历史），要把 button 的默认样式压掉 */
-.mini-tag.link {
-  cursor: pointer;
-  font-family: inherit;
-}
-.mini-tag.link:hover { text-decoration: underline; }
-</style>

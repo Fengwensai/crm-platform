@@ -9,6 +9,10 @@ import 'element-plus/dist/index.css'
 //   `html.dark { … }` 那一套变量——留着它本身无害（没有 .dark 类就不生效），
 //   但它是「哪天顺手加回深色模式」的入口。浅色站不留这个入口。
 import './styles/theme.css'
+// 标注 / 质检两个登记页的专属样式（按设计稿还原）。只含 `.wk-` 前缀的新类名，
+// 故不影响其他页面；顺序排在 element-plus 之后，同特异性时由它胜出
+// ——具体靠哪一级压过 EP，见该文件头的说明。
+import './styles/work.css'
 
 import App from './App.vue'
 import router from './router'
