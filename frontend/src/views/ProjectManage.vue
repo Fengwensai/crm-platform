@@ -13,7 +13,9 @@
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="code" label="项目编号" width="160" />
         <el-table-column prop="name" label="项目名称" min-width="180" />
-        <el-table-column prop="unit" label="单位" width="90" />
+        <!-- 「单位」列已去掉：v2 的数量口径是 2D/3D 框数，单位恒为「框」。
+             留着这一列的话，后台里会有人继续维护它，而它不影响任何一处计算。
+             列本身还在库里（DROP COLUMN 不可逆），只是接口和界面都不再提它。 -->
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small" effect="dark">
@@ -52,9 +54,6 @@
         <el-form-item label="项目名称" required>
           <el-input v-model="form.name" maxlength="128" placeholder="如 语音转写第一批" />
         </el-form-item>
-        <el-form-item label="计量单位">
-          <el-input v-model="form.unit" maxlength="16" placeholder="条 / 句 / 张 / 小时" />
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="visible = false">取消</el-button>
@@ -74,7 +73,7 @@ const rows = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const visible = ref(false)
-const form = reactive({ id: null, code: '', name: '', unit: '条' })
+const form = reactive({ id: null, code: '', name: '' })
 
 const fmt = (s) => (s ? new Date(s).toLocaleString('zh-CN', { hour12: false }) : '—')
 
@@ -88,12 +87,12 @@ async function load() {
 }
 
 function openCreate() {
-  Object.assign(form, { id: null, code: '', name: '', unit: '条' })
+  Object.assign(form, { id: null, code: '', name: '' })
   visible.value = true
 }
 
 function openEdit(row) {
-  Object.assign(form, { id: row.id, code: row.code, name: row.name, unit: row.unit })
+  Object.assign(form, { id: row.id, code: row.code, name: row.name })
   visible.value = true
 }
 
@@ -103,12 +102,10 @@ async function onSave() {
   saving.value = true
   try {
     if (form.id) {
-      await request.patch(`/projects/${form.id}`, { name: form.name.trim(), unit: form.unit || '条' })
+      await request.patch(`/projects/${form.id}`, { name: form.name.trim() })
       ElMessage.success('已保存')
     } else {
-      await request.post('/projects', {
-        code: form.code.trim(), name: form.name.trim(), unit: form.unit || '条'
-      })
+      await request.post('/projects', { code: form.code.trim(), name: form.name.trim() })
       ElMessage.success('已创建')
     }
     visible.value = false

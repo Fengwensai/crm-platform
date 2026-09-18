@@ -1,40 +1,35 @@
 <template>
-  <div class="page-wrap">
-    <div class="toolbar">
-      <span class="page-title">账号审批</span>
-      <span class="page-sub" style="margin: 0">
-        员工自助注册后卡在这里，审批通过才能登录填报
+  <div>
+    <div class="filters">
+      <span class="hint">
+        员工自助注册后卡在这里，<b>审批通过才能登录</b>；驳回时写的原因会显示给对方。
       </span>
       <div class="spacer"></div>
       <el-button size="small" :icon="Refresh" @click="load">刷新</el-button>
     </div>
 
-    <el-card shadow="never">
-      <el-table :data="rows" v-loading="loading" stripe empty-text="没有待审批的账号">
-        <el-table-column prop="username" label="工号" width="150" />
-        <el-table-column prop="name" label="姓名" width="140" />
-        <el-table-column label="提交时间" min-width="170">
-          <template #default="{ row }">{{ fmt(row.created_at) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
-          <template #default="{ row }">
-            <el-button type="success" size="small" @click="openReview(row, 'approve')">通过</el-button>
-            <el-button type="danger" size="small" plain @click="openReview(row, 'reject')">驳回</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    <el-table :data="rows" v-loading="loading" stripe empty-text="没有待审批的账号">
+      <el-table-column prop="username" label="工号" width="150" />
+      <el-table-column prop="name" label="姓名" width="140" />
+      <el-table-column label="提交时间" min-width="170">
+        <template #default="{ row }">{{ fmt(row.created_at) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="{ row }">
+          <el-button type="success" size="small" @click="openReview(row, 'approve')">通过</el-button>
+          <el-button type="danger" size="small" plain @click="openReview(row, 'reject')">驳回</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
 
     <div class="tip">
-      提示：工号是登录名，重复的工号在注册时就会被拒。若有员工报「注册说工号已存在」，
-      多半是自己之前已注册过——去
-      <router-link to="/users">账号管理</router-link> 里搜一下工号，重置密码即可，不用重新注册。
+      工号是登录名，重复的工号在注册时就会被拒。若有员工报「工号已存在」，
+      多半是他之前已经注册过——去「账号」页搜一下工号，重置密码即可，不用重新注册。<br />
+      审批通过后，别忘了在「账号」页把他分到团队，否则组长看不到他的数据。
     </div>
 
     <el-dialog v-model="visible" :title="mode === 'approve' ? '通过审批' : '驳回注册'" width="440px">
-      <p class="dlg-line">
-        <b>{{ cur.name }}</b>（工号 {{ cur.username }}）
-      </p>
+      <p class="dlg-line"><b>{{ cur.name }}</b>（工号 {{ cur.username }}）</p>
       <el-input
         v-model="note"
         type="textarea"
@@ -57,7 +52,12 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import request from '../api/request'
+import request from '../../api/request'
+
+// ★ 把条数交给外层壳（UserManage.vue），它用这个数字点 tab 上的红点，
+//   也让顶栏那个红点在审批完立刻归零。子组件自己改顶栏状态的话，
+//   顶栏就成了一个谁都能写的全局变量。
+const emit = defineEmits(['count'])
 
 const rows = ref([])
 const loading = ref(false)
@@ -67,14 +67,13 @@ const mode = ref('approve')
 const cur = ref({})
 const note = ref('')
 
-function fmt(s) {
-  return s ? new Date(s).toLocaleString('zh-CN', { hour12: false }) : '—'
-}
+const fmt = (s) => (s ? new Date(s).toLocaleString('zh-CN', { hour12: false }) : '—')
 
 async function load() {
   loading.value = true
   try {
     rows.value = await request.get('/users/pending')
+    emit('count', rows.value.length)
   } finally {
     loading.value = false
   }
@@ -105,15 +104,23 @@ async function onConfirm() {
 }
 
 onMounted(load)
+defineExpose({ load })
 </script>
 
 <style scoped>
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.spacer { flex: 1; }
+.hint { font-size: 13px; color: var(--el-text-color-secondary); }
 .tip {
   margin-top: 14px;
   font-size: 13px;
   color: var(--el-text-color-secondary);
   line-height: 1.7;
 }
-.tip a { color: #66b1ff; text-decoration: none; }
 .dlg-line { margin: 0 0 12px; }
 </style>

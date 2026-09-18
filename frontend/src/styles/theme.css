@@ -1,62 +1,73 @@
 /* =========================================================
-   工作量统计平台 · 深色主题
-   与方言平台后台同一套极光蓝青调（深海军蓝底 + #409eff / #00c9b0），
-   两个后台并排开着不会觉得是两个系统。
+   工作量统计平台 · 浅色主题
+   品牌色沿用 #409eff / 青绿强调色，与设计稿一致。
+
+   ★ 覆盖写在 `:root` 而不是 `html.dark`。`main.js` 里那句
+     `document.documentElement.classList.add('dark')` 已经删掉了——
+     留着它是定时炸弹：任何一次「顺手加个深色模式」都会让整站突然变深，
+     而这里的选择器会跟着一起失效。
    ========================================================= */
 
-html.dark {
-  /* 主色 */
+:root {
+  /* 主色（与 Element Plus 默认一致，显式写出来是为了让下面几档浅色可预期） */
   --el-color-primary: #409eff;
   --el-color-primary-dark-2: #337ecc;
-  --el-color-primary-light-3: #66b1ff;
-  --el-color-primary-light-5: #8cc5ff;
-  --el-color-primary-light-7: #b3d9ff;
-  --el-color-primary-light-8: #c6e3ff;
-  --el-color-primary-light-9: #e8f4ff;
+  --el-color-primary-light-3: #79bbff;
+  --el-color-primary-light-5: #a0cfff;
+  --el-color-primary-light-7: #c6e2ff;
+  --el-color-primary-light-8: #d9ecff;
+  --el-color-primary-light-9: #ecf5ff;
 
   /* 背景 */
-  --el-bg-color-page: #0a1220;
-  --el-bg-color: #141f30;
-  --el-bg-color-overlay: #1a2a3c;
-  --el-fill-color-blank: #141f30;
-  --el-fill-color: #1b2b3e;
-  --el-fill-color-light: #22344a;
-  --el-fill-color-lighter: #1e3044;
-  --el-fill-color-extra-light: #182a3e;
-  --el-fill-color-dark: #2b4058;
-  --el-fill-color-darker: #334b66;
+  --el-bg-color-page: #f5f7fa;
+  --el-bg-color: #ffffff;
+  --el-bg-color-overlay: #ffffff;
+  --el-fill-color-blank: #ffffff;
+  --el-fill-color: #f0f2f5;
+  --el-fill-color-light: #f5f7fa;
+  --el-fill-color-lighter: #fafafa;
+  --el-fill-color-extra-light: #fcfcfd;
+  --el-fill-color-dark: #ebedf0;
+  --el-fill-color-darker: #e6e8eb;
 
   /* 边框 */
-  --el-border-color: #2c4058;
-  --el-border-color-light: #263a52;
-  --el-border-color-lighter: #21344a;
-  --el-border-color-extra-light: #1c2c40;
-  --el-border-color-dark: #354c68;
-  --el-border-color-darker: #3e5878;
+  --el-border-color: #dcdfe6;
+  --el-border-color-light: #e4e7ed;
+  --el-border-color-lighter: #ebeef5;
+  --el-border-color-extra-light: #f2f6fc;
+  --el-border-color-dark: #d4d7de;
+  --el-border-color-darker: #cdd0d6;
 
   /* 文字 */
-  --el-text-color-primary: #e9f0f9;
-  --el-text-color-regular: #bdc9da;
-  --el-text-color-secondary: #8ba0b8;
-  --el-text-color-placeholder: #617693;
-  --el-text-color-disabled: #4c5f78;
+  --el-text-color-primary: #1f2d3d;
+  --el-text-color-regular: #4b5563;
+  --el-text-color-secondary: #6b7785;
+  --el-text-color-placeholder: #a8abb2;
+  --el-text-color-disabled: #c0c4cc;
 
-  --el-mask-color: rgba(10, 18, 32, 0.72);
+  --el-mask-color: rgba(255, 255, 255, 0.82);
 
-  /* 表格 */
+  /* 表格：表头比正文略深一点点，浅色下不能靠色相差拉开层次 */
   --el-table-bg-color: var(--el-bg-color);
   --el-table-tr-bg-color: var(--el-bg-color);
-  --el-table-header-bg-color: #16233a;
-  --el-table-header-text-color: var(--el-text-color-regular);
-  --el-table-row-hover-bg-color: rgba(64, 158, 255, 0.08);
+  --el-table-header-bg-color: #f5f7fa;
+  --el-table-header-text-color: #4b5563;
+  --el-table-row-hover-bg-color: rgba(64, 158, 255, 0.06);
   --el-table-border-color: var(--el-border-color-lighter);
-}
 
-/* 本平台自有强调色：青绿，用于「合格率」等正向指标 */
-:root {
-  --crm-teal: #00c9b0;
-  --crm-warn: #e6a23c;
-  --crm-danger: #f56c6c;
+  /* —— 本平台自有强调色 ——
+     ★ 深色底上的 #00c9b0 / #e6a23c 直接搬到白底上，对比度只有 ~2:1，
+       而 AA 正文要求 4.5:1。它们恰好用在「通过率」「打回」这种关键指标上，
+       看不清等于没写。所以整条色阶各压深一档。 */
+  --crm-teal: #0d9488;
+  --crm-warn: #b45309;
+  --crm-danger: #dc2626;
+  /* 条形图用色（浅色下要够实，不能用半透明叠白底） */
+  --crm-bar-a: #4aa8e0;
+  --crm-bar-a2: #2b7fd4;
+  --crm-bar-b: #c98a2e;
+  --crm-bar-c: #2fa08a;
+  --crm-bar-d: #cf6b6b;
 }
 
 html, body {
@@ -80,13 +91,13 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2c4058;
+  background: #c8cdd6;
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a5578;
+  background: #aab1bd;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-track {
@@ -94,20 +105,13 @@ body {
 }
 
 ::selection {
-  background: rgba(64, 158, 255, 0.35);
-  color: #fff;
+  background: rgba(64, 158, 255, 0.25);
+  color: inherit;
 }
 
-html.dark .el-card {
-  --el-card-bg-color: var(--el-bg-color);
-  border-color: var(--el-border-color-lighter);
-}
-html.dark .el-dialog {
-  --el-dialog-bg-color: #16233a;
-}
-html.dark .el-message-box {
-  --el-messagebox-bg-color: #16233a;
-}
+/* ★ 这里原来有三条 `html.dark .el-card / .el-dialog / .el-message-box` 的深色补丁。
+   浅色下它们会把卡片和弹窗强制涂成深蓝，而它们藏在文件末尾，是最容易漏删的一处。
+   现在整段删掉：Element Plus 的浅色默认值本来就是对的，不需要补丁。 */
 
 /* —— 通用小件 —— */
 .page-wrap {
@@ -170,7 +174,9 @@ html.dark .el-message-box {
   margin-top: 6px;
 }
 
-/* 手绘条形图（不引 echarts，保持包体小） */
+/* 手绘条形图（不引 echarts，保持包体小；两轨共用同一套类名，只换配色）
+   ★ 双轨各画一张，**上下叠放、共用同一根日期轴**。绝不把框数和质检条数
+     堆进同一根柱子里——不同量纲相加出来的高度没有含义。 */
 .bars {
   display: flex;
   align-items: flex-end;
@@ -197,11 +203,19 @@ html.dark .el-message-box {
   overflow: hidden;
   background: transparent;
 }
-.bars .bar-qualified {
-  background: linear-gradient(180deg, #4fc3f7, #2b7fd4);
+/* 标注轨：2D + 3D 堆叠 */
+.bars .bar-2d {
+  background: linear-gradient(180deg, #6fc0ec, var(--crm-bar-a));
 }
-.bars .bar-rework {
-  background: rgba(230, 162, 60, 0.75);
+.bars .bar-3d {
+  background: linear-gradient(180deg, #4a93d8, var(--crm-bar-a2));
+}
+/* 质检轨：通过 + 打回 堆叠 */
+.bars .bar-pass {
+  background: linear-gradient(180deg, #4fc0a8, var(--crm-bar-c));
+}
+.bars .bar-reject {
+  background: linear-gradient(180deg, #e08c8c, var(--crm-bar-d));
 }
 .bars .bar-label {
   font-size: 11px;
@@ -224,4 +238,43 @@ html.dark .el-message-box {
   border-radius: 2px;
   margin-right: 6px;
   vertical-align: -1px;
+}
+
+/* 两轨的图上下叠放时，中间给一点呼吸，并共用一个日期轴标题 */
+.track-block + .track-block {
+  margin-top: 18px;
+}
+.track-block .track-title {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-bottom: 8px;
+}
+
+/* 表格里的窄标记（「我检的 / 被检的」「已修改」），比 el-tag 省地方 */
+.mini-tag {
+  display: inline-block;
+  padding: 0 6px;
+  height: 19px;
+  line-height: 18px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--el-border-color);
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+  white-space: nowrap;
+}
+.mini-tag.mine {
+  color: var(--el-color-primary-dark-2);
+  border-color: var(--el-color-primary-light-7);
+  background: var(--el-color-primary-light-9);
+}
+.mini-tag.warn {
+  color: var(--crm-warn);
+  border-color: #f0d7a8;
+  background: #fdf6ec;
+}
+.mini-tag.dup {
+  color: var(--crm-danger);
+  border-color: #f3c9c9;
+  background: #fef0f0;
 }

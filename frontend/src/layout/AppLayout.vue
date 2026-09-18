@@ -7,23 +7,21 @@
       </div>
       <div class="logo-line"></div>
       <el-menu :default-active="activeMenu" router class="menu">
-        <el-menu-item index="/my-work"><el-icon><EditPen /></el-icon><span>我的填报</span></el-menu-item>
-        <el-menu-item index="/my-stats"><el-icon><Histogram /></el-icon><span>我的统计</span></el-menu-item>
-
-        <template v-if="auth.isManager">
-          <div class="menu-group">管理</div>
-          <el-menu-item index="/dashboard"><el-icon><DataAnalysis /></el-icon><span>数据看板</span></el-menu-item>
-          <el-menu-item index="/records"><el-icon><Tickets /></el-icon><span>全部数据</span></el-menu-item>
-          <el-menu-item index="/review">
-            <el-icon><Bell /></el-icon>
-            <span>账号审批</span>
-            <el-badge v-if="pendingCount > 0" :value="pendingCount" class="menu-badge" />
-          </el-menu-item>
-          <el-menu-item index="/users"><el-icon><User /></el-icon><span>账号管理</span></el-menu-item>
-          <el-menu-item index="/projects"><el-icon><Collection /></el-icon><span>项目管理</span></el-menu-item>
-          <el-menu-item index="/audit-logs"><el-icon><Document /></el-icon><span>操作留痕</span></el-menu-item>
-        </template>
+        <el-menu-item v-for="item in menu" :key="item.path" :index="item.path">
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.title }}</span>
+          <el-badge
+            v-if="item.path === '/users' && pendingCount > 0"
+            :value="pendingCount"
+            class="menu-badge"
+          />
+        </el-menu-item>
       </el-menu>
+      <!-- 组长没挂团队时后端给他空集，他登录后什么都看不见。
+           不说清楚的话他只会认为系统坏了，所以在菜单底下明写一行。 -->
+      <div v-if="auth.role === 'leader' && !auth.user?.team_id" class="team-warn">
+        尚未分配团队，暂时看不到下属数据
+      </div>
     </el-aside>
 
     <el-container>
@@ -33,7 +31,7 @@
           <span class="user">
             <span class="user-avatar"><el-icon :size="14"><UserFilled /></el-icon></span>
             <span class="user-name">{{ auth.user?.name || auth.user?.username }}</span>
-            <span class="user-role">{{ auth.roleLabel }}</span>
+            <span class="user-role">{{ auth.roleLabelFull }}</span>
             <el-icon class="user-caret"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
@@ -54,6 +52,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { navFor } from '../constants/nav'
 import request from '../api/request'
 
 const route = useRoute()
@@ -62,6 +61,11 @@ const auth = useAuthStore()
 
 const pendingCount = ref(0)
 const activeMenu = computed(() => route.meta.activeMenu || route.path)
+
+// ★ 菜单来自 NAV，与路由表同一份数据（见 constants/nav.js 的说明）。
+//   这里不再有任何 `v-if="auth.isManager"` —— 那种写成否定式的门禁，
+//   加一类角色就要全仓改一遍，且「菜单藏了但 URL 还能直接进」一定会漏。
+const menu = computed(() => navFor(auth.role))
 
 async function refreshPending() {
   if (!auth.isManager) return
@@ -81,10 +85,16 @@ onMounted(async () => {
   } catch {
     return
   }
+  // ★ fetchMe 之后角色才确定。若本地缓存里没有 user（比如换了浏览器、
+  //   或被清过 localStorage 但 token 还在），beforeEach 会因为没有 role
+  //   而放行任意页面。拿到真角色后在这里补一次判定，把人送回他的首页。
+  if (!navFor(auth.role).some((i) => i.path === route.path)) {
+    router.replace('/')
+  }
   refreshPending()
 })
 
-// 离开审批页/账号页后刷新红点
+// 离开用户管理页后刷新红点
 watch(() => route.path, refreshPending)
 
 function onCommand(cmd) {
@@ -101,21 +111,17 @@ function onCommand(cmd) {
   background: var(--el-bg-color-page);
 }
 
+/* —— 侧栏：白底 + 浅边框 ——
+   原来是深色渐变 + 右下角一团青色光晕（`::after` 的 radial-gradient）。
+   那团光晕在浅色底上就是一块脏斑，随深色一起删掉了。
+   品牌识别由 .logo-mark / .logo-line / 菜单选中态那根竖条承担。 */
 .aside {
-  position: relative;
-  background: linear-gradient(180deg, #12233a 0%, #1d2b3a 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-right: 1px solid var(--el-border-color-light);
   overflow-x: hidden;
   overflow-y: auto;
-}
-.aside::after {
-  content: "";
-  position: absolute;
-  left: -70px; bottom: -90px;
-  width: 260px; height: 260px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(0, 201, 176, 0.14), transparent 70%);
-  pointer-events: none;
 }
 
 .logo {
@@ -125,7 +131,9 @@ function onCommand(cmd) {
   align-items: center;
   justify-content: center;
   gap: 10px;
+  flex: 0 0 auto;
 }
+/* 保留：蓝青渐变方块是本平台的品牌锚点，浅色底上比深色底更清晰 */
 .logo-mark {
   width: 30px; height: 30px;
   border-radius: 9px;
@@ -133,41 +141,44 @@ function onCommand(cmd) {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #409eff, #00c9b0);
-  box-shadow: 0 4px 14px rgba(64, 158, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 14px rgba(64, 158, 255, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
+/* ★ 原样式是白→浅蓝的 `background-clip: text` 渐变字。白字在**白底**上
+   完全看不见（不是「对比度差」，是纯隐形）。改纯色。 */
 .logo-text {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 2px;
-  background: linear-gradient(90deg, #ffffff 20%, #bcd6ff 60%, #8fd8ff 100%);
-  -webkit-background-clip: text;
-          background-clip: text;
-  color: transparent;
+  color: var(--el-text-color-primary);
 }
+/* 保留：分隔线是品牌锚点之一 */
 .logo-line {
   height: 1px;
   margin: 0 18px 8px;
   background: linear-gradient(90deg, transparent, rgba(64, 158, 255, 0.5), rgba(0, 201, 176, 0.5), transparent);
+  flex: 0 0 auto;
 }
 
 .menu {
   border-right: none;
+  flex: 1 1 auto;
   --el-menu-bg-color: transparent;
-  --el-menu-text-color: #b9c6d6;
-  --el-menu-active-color: #fff;
-  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.06);
+  --el-menu-text-color: var(--el-text-color-regular);
+  --el-menu-active-color: var(--el-color-primary);
+  --el-menu-hover-bg-color: var(--el-fill-color-light);
 }
 .menu :deep(.el-menu-item) {
   height: 46px;
   margin: 3px 10px;
   border-radius: 10px;
 }
-.menu :deep(.el-menu-item:hover) { color: #fff; }
+.menu :deep(.el-menu-item:hover) { color: var(--el-color-primary); }
 .menu :deep(.el-menu-item.is-active) {
-  color: #fff;
-  background: linear-gradient(90deg, rgba(64, 158, 255, 0.30), rgba(0, 201, 176, 0.14));
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
   position: relative;
 }
+/* 保留：选中态左侧那根 3px 竖条 —— 四处品牌锚点里最显眼的一处 */
 .menu :deep(.el-menu-item.is-active)::before {
   content: "";
   position: absolute;
@@ -177,14 +188,6 @@ function onCommand(cmd) {
   background: linear-gradient(180deg, #409eff, #00c9b0);
 }
 .menu :deep(.el-menu-item .el-icon) { font-size: 17px; }
-
-/* 分组小标题：员工看不到，管理者在「我的填报」和「管理」之间有个分界 */
-.menu-group {
-  margin: 14px 20px 6px;
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: #6b8199;
-}
 .menu-badge {
   margin-left: auto;
 }
@@ -192,16 +195,29 @@ function onCommand(cmd) {
   border: none;
 }
 
+.team-warn {
+  margin: 8px 14px 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--crm-warn);
+  background: #fdf6ec;
+  border: 1px solid #f0d7a8;
+  flex: 0 0 auto;
+}
+
+/* —— 顶栏：去掉毛玻璃 ——
+   深层底上的 `backdrop-filter: blur()` 是为了「内容从半透明栏下透出来」。
+   浅色下它只会让滚动的内容变成一片糊影，而且 Safari 上还会掉帧。 */
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 64px;
   padding: 0 24px;
-  background: linear-gradient(180deg, rgba(20, 31, 48, 0.9), rgba(20, 31, 48, 0.7));
-  -webkit-backdrop-filter: blur(12px);
-          backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: #fff;
+  border-bottom: 1px solid var(--el-border-color-light);
 }
 .page-title {
   font-size: 17px;
@@ -209,6 +225,7 @@ function onCommand(cmd) {
   letter-spacing: 1px;
   color: var(--el-text-color-primary);
 }
+/* 保留：标题前的 4px 竖条，与菜单选中态那根是同一套语言 */
 .page-title::before {
   content: "";
   display: inline-block;
@@ -225,13 +242,13 @@ function onCommand(cmd) {
   padding: 6px 12px;
   border-radius: 10px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
   transition: background 0.2s, border-color 0.2s;
 }
 .user:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-7);
 }
 .user-avatar {
   width: 26px; height: 26px;
@@ -247,16 +264,14 @@ function onCommand(cmd) {
   font-size: 12px;
   padding: 1px 8px;
   border-radius: 999px;
-  color: #8fd8ff;
-  background: rgba(64, 158, 255, 0.16);
+  color: var(--el-color-primary-dark-2);
+  background: var(--el-color-primary-light-9);
 }
-.user-caret { color: var(--el-text-color-secondary); font-size: 12px; }
 
+/* ★ 这里原来有两层 radial-gradient 的极光背景。浅色底上它们只会让
+   正文区域泛出一层脏黄/脏青，且不同屏幕上看颜色还不一样。整段删掉。 */
 .main {
   padding: 20px;
-  background:
-    radial-gradient(900px 500px at 12% -10%, rgba(64, 158, 255, 0.07), transparent 60%),
-    radial-gradient(800px 460px at 100% 110%, rgba(0, 201, 176, 0.06), transparent 60%),
-    var(--el-bg-color-page);
+  background: var(--el-bg-color-page);
 }
 </style>
