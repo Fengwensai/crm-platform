@@ -267,6 +267,26 @@ bash scripts/e2e_http.sh
 - 密钥：`/deploy-bundle/CRM_SECRETS.txt`（root 600）与 `/opt/crm/backend/.env`
 - 服务器**没有 hairpin NAT**：在服务器上自测要走
   `curl --resolve crm.qlzby.com:443:127.0.0.1 https://crm.qlzby.com/`，直连公网 IP 会失败
+- **nginx：两个平台共用一份全局配置**，改一处两边都受影响——动它之前先想清楚这点。
+  2026-09-18 为首屏提速动过两处；改动前的原件留在服务器
+  `/root/nginx-backup-20260918-175822/`，同目录的 `README.txt` 写明哪个文件能拿来回滚、哪个不能。
+
+  | 文件 | 改动 | 为什么 |
+  |---|---|---|
+  | `/etc/nginx/nginx.conf` | 打开 `gzip_types` 等 5 条 | 原本只有 `gzip on;`，而 `gzip_types` 是注释掉的，nginx 默认**只压 `text/html`**，打包产物一个字节都不压。实测 JS **1,267,421 → 408,852 字节**，首屏 **8~9 秒 → 2.03 秒** |
+  | `sites-available/crm.conf` | 新增 `location /assets/` | Vite 产物名带内容哈希，可以安全长缓存 |
+
+  ★ **别把 `gzip_types` 注释回去**。只留 `gzip on;` 看起来像「压缩开着」，实际 JS/CSS/JSON 全是裸传，
+  而且**不报任何错**——这正是它被漏掉这么久的原因。判断是否真的生效要看响应头有没有 `Content-Encoding`，
+  不是看 `gzip on` 在不在。
+
+  ★ `index.html` **刻意不设** `Cache-Control`，让它每次都协商（304）：发版后浏览器立刻拿到新 HTML，
+  再由新 HTML 去取新的哈希文件名。要是给 `index.html` 也加长缓存，用户会一直停在旧版本，
+  而且**刷新也没用**，只能清浏览器缓存——这个坑比多几次 304 贵得多。
+
+  ★ **别照搬给方言平台的门户**：`/opt/portal/assets/` 下是 `css/ js/ images/` 这类**手工维护、
+  文件名不带哈希**的目录，给它加 `immutable` 会让改过的文件在回访用户那里一年都不更新。
+  长缓存的前提是**文件名随内容变**；不满足这个前提时，正确做法是不加。
 
 ## 已知遗留
 
@@ -278,4 +298,5 @@ bash scripts/e2e_http.sh
 | `projects.unit` 列 | v1 遗留。接口/界面/统计都读不到它，只是列还在库里 |
 | `work_records` 表与模型 | 线上还有 v1 数据。模型必须继续留在 `models/__init__.py` 里，否则 `create_all` 在新环境不会建它，schema 会漂 |
 | 打包命令里的 `rm -rf scripts` | 会连 `backup.sh` 一起删（`/etc/cron.d/crm-backup` 依赖它）。仓库里那份已随包部署并逐字节核对过，但「在服务器上直接改备份脚本」这个习惯会让它被悄悄覆盖——改备份要改仓库那份再部署 |
+| `/etc/nginx/` 不在仓库里 | nginx 配置是纯手工的服务器状态：部署只换 `app/`、`scripts/`、`dist/`，没有任何一步会碰它。好处是**不会被部署覆盖**，代价是**也不会被备份和 git 带走**——改之前先 `cp -L` 存一份（★ 必须带 `-L`，`sites-enabled/` 下全是符号链接，不加的话备份出来还是指回原文件的链接，等于没存） |
 
