@@ -55,9 +55,37 @@ jobs:
           CORS_ORIGINS=*
           EOF
 
-      # 42 条断言，覆盖：认证审批、填报规则、数据隔断、审计留痕、限流。
-      # 脚本自己建表、自己清理，最后还会断言"测试数据已清理干净"。
-      - name: 核心回归（42 断言）
+      # ★★ 顺序不能换：先迁移，再比对 schema，最后才是回归。
+      #
+      #   本仓有**两条建表路径**：`create_all()`（CI 与全新环境用）和
+      #   `migrate_v2.py` 的裸 DDL（线上已有库用）。CI 如果只跑 create_all，
+      #   那条裸 DDL 路径的 bug **永远进不了 CI**——而它恰恰是线上唯一走的那条。
+      #
+      #   所以在空的 CI 库上先跑一遍 migrate_v2.py：它会把每张表都用**生产方言**
+      #   的 DDL 建出来。后面两条断言都跑在这批表上，于是线上路径与 CI 路径
+      #   由同一批语句产出，漂移在构造上就不存在。
+      - name: 迁移（线上路径：裸 DDL 建表）
+        working-directory: backend
+        run: |
+          set -e
+          echo "===== migrate_v2（第 1 遍）====="
+          .venv/bin/python scripts/migrate_v2.py || { echo "FAIL: migrate_v2"; exit 1; }
+          echo "===== migrate_v2（第 2 遍，必须幂等）====="
+          .venv/bin/python scripts/migrate_v2.py || { echo "FAIL: migrate_v2 不幂等"; exit 1; }
+
+      # 逐表逐列比对「库里的实际结构」与 ORM 模型。上面那条只证明迁移能跑完，
+      # 这条证明它建出来的东西是对的（少一列、类型不同、漏一条索引都在这里现形）。
+      - name: schema 一致性（ORM vs 实际库）
+        working-directory: backend
+        run: |
+          set -e
+          echo "===== verify_schema ====="
+          .venv/bin/python scripts/verify_schema.py || { echo "FAIL: verify_schema"; exit 1; }
+
+      # 149 条断言，覆盖：认证审批、团队与角色、标注、质检、数据隔断、
+      # 代填归属、导出、统计、停用即时失效、注册限流。
+      # 脚本自己清理，最后还会断言"测试数据已清理干净（含 v2 的标注/质检/团队）"。
+      - name: 核心回归（149 断言）
         working-directory: backend
         run: |
           set -e

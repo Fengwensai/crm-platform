@@ -8,7 +8,17 @@ from sqlalchemy import text
 
 from .core.config import settings
 from .db import SessionLocal
-from .routers import audit, auth, projects, stats, users, work_records
+from .routers import (
+    annotations,
+    audit,
+    auth,
+    projects,
+    qc,
+    stats,
+    teams,
+    users,
+    work_records,
+)
 
 app = FastAPI(title="客户/员工管理平台 API")
 
@@ -26,6 +36,12 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(projects.router)
+# v2 双轨：标注 / 质检 + 团队
+app.include_router(annotations.router)
+app.include_router(qc.router)
+app.include_router(teams.router)
+# v1 遗留路由，仍然挂载：线上库里还有旧数据要看，且迁移期两种口径并存。
+# 前端已不再有入口，等确认无人再访问后可整体摘掉。
 app.include_router(work_records.router)
 app.include_router(users.router)
 app.include_router(stats.router)

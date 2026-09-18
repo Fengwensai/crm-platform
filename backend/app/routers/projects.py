@@ -37,9 +37,10 @@ def create_project(
     code = body.code.strip()
     if db.query(Project).filter(Project.code == code).first():
         raise HTTPException(status_code=409, detail="该项目编号已存在")
-    p = Project(
-        code=code, name=body.name.strip(), unit=(body.unit or "条").strip(), status="active"
-    )
+    # `unit` 不再是入参（v2 起停用，见 schemas/project.py）。列还在模型上，
+    # 所以这里不传就会落到列默认值——**不要**在这里再补一个 "框"：
+    # 那是给一个恒不被读取的列写一个看似正确的值，只会让下一个人以为它在生效。
+    p = Project(code=code, name=body.name.strip(), status="active")
     db.add(p)
     db.flush()
     log_action(
@@ -68,17 +69,17 @@ def update_project(
     if p is None:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    before = {"name": p.name, "unit": p.unit, "status": p.status}
+    # 快照里**不含 `unit`**：它已经不是可改字段，放进去只会让每条审计都带一个
+    # 永远不会变的键。
+    before = {"name": p.name, "status": p.status}
     if body.name is not None:
         p.name = body.name.strip()
-    if body.unit is not None:
-        p.unit = body.unit.strip() or "条"
     if body.status is not None:
         if body.status not in ("active", "archived"):
             raise HTTPException(status_code=422, detail="状态只能是 active 或 archived")
         p.status = body.status
 
-    after = {"name": p.name, "unit": p.unit, "status": p.status}
+    after = {"name": p.name, "status": p.status}
     if before != after:
         log_action(
             db,

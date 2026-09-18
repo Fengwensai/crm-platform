@@ -37,8 +37,25 @@ from sqlalchemy.schema import CreateColumn, CreateIndex, CreateTable  # noqa: E4
 from app.db import Base, engine  # noqa: E402
 import app.models  # noqa: E402,F401  确保所有模型注册到 Base.metadata
 
-# 迁移要用的方言：线上恒为 PostgreSQL（本地 sqlite 冒烟也用得上）
+# 迁移要用的方言：**恒为 PostgreSQL**，不取 `engine.dialect`。
+#
+# ★ 这不是随手写死的。本脚本的产物会直接落到线上库上，所以它生成的 DDL
+#   必须是**生产方言**的，不能因为有人把 DATABASE_URL 指到了别的库就换一套
+#   语法——那会悄悄建出一份半成品的 schema，而且没有任何报错。
+#   代价是它没法在本地 sqlite 上冒烟（下面 `_assert_pg` 会直接拒绝，
+#   而不是让 SQLite 抛一句 `near "(": syntax error` 让人以为脚本坏了）。
+#   要验它，跑 CI（那里的引擎就是 PG）或服务器。
 _DIALECT = postgresql.dialect()
+
+
+def _assert_pg() -> None:
+    if engine.dialect.name != "postgresql":
+        raise SystemExit(
+            f"拒绝执行：本脚本只对 PostgreSQL 生成 DDL，当前连的是 "
+            f"{engine.dialect.name!r}。\n"
+            f"      全新环境请用 init_db.py（走 create_all，与方言无关）；\n"
+            f"      要验迁移脚本本身，请连一个真实的 PG（CI 或服务器）。"
+        )
 
 
 def _ddl(stmt) -> str:
@@ -54,6 +71,7 @@ def _existing_columns(table: str) -> set[str]:
 
 
 def main() -> None:
+    _assert_pg()
     have_tables = _existing_tables()
     statements: list[str] = []
     notes: list[str] = []

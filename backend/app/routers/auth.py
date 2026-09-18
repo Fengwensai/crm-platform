@@ -7,6 +7,7 @@ from ..core.netutil import client_ip
 from ..core.ratelimit import allow as rate_allow
 from ..core.security import create_access_token, hash_password, verify_password
 from ..db import get_db
+from ..models.team import Team
 from ..models.user import User
 from ..schemas.auth import LoginIn, MeOut, RegisterIn, TokenOut
 
@@ -77,5 +78,14 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=MeOut)
-def me(user: User = Depends(get_current_user)):
-    return user
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # `team_name` 不是模型字段，from_attributes 取不到，得单独查一次。
+    # 这里刻意不做成 relationship：`/auth/me` 每次进后台都会调一次，
+    # 为一个名字多带一次 lazy load 没必要，而且会让「序列化 User」随时可能触发
+    # 隐藏的数据库往返（在别的地方就变成 N+1）。
+    out = MeOut.model_validate(user)
+    if user.team_id is not None:
+        out.team_name = (
+            db.query(Team.name).filter(Team.id == user.team_id).scalar() or ""
+        )
+    return out
