@@ -1,12 +1,13 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from .core.config import settings
+from .core.deps import reject_readonly_write
 from .db import SessionLocal
 from .routers import (
     annotations,
@@ -34,18 +35,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 只读演示账号（赛事评审用）的写操作拦截，挂在除 auth 之外的每个路由组上。
+#
+# ★ auth 必须排除：它里面是公开的 POST /login 与 POST /register，
+#   没有 user 依赖，套上这个守卫会让包括评委在内的所有人登不进来。
+#   其余路由（含 stats / audit 这种当前没有写接口的）一并挂上，是为了将来
+#   往里加写接口时不用再记得补——漏挂一次就是一处绕过口子。
+_readonly_guard = [Depends(reject_readonly_write)]
+
 app.include_router(auth.router)
-app.include_router(projects.router)
+app.include_router(projects.router, dependencies=_readonly_guard)
 # v2 双轨：标注 / 质检 + 团队
-app.include_router(annotations.router)
-app.include_router(qc.router)
-app.include_router(teams.router)
+app.include_router(annotations.router, dependencies=_readonly_guard)
+app.include_router(qc.router, dependencies=_readonly_guard)
+app.include_router(teams.router, dependencies=_readonly_guard)
 # v1 遗留路由，仍然挂载：线上库里还有旧数据要看，且迁移期两种口径并存。
 # 前端已不再有入口，等确认无人再访问后可整体摘掉。
-app.include_router(work_records.router)
-app.include_router(users.router)
-app.include_router(stats.router)
-app.include_router(audit.router)
+app.include_router(work_records.router, dependencies=_readonly_guard)
+app.include_router(users.router, dependencies=_readonly_guard)
+app.include_router(stats.router, dependencies=_readonly_guard)
+app.include_router(audit.router, dependencies=_readonly_guard)
 
 # 附件目录静态服务
 MEDIA_DIR = Path(settings.MEDIA_ROOT)

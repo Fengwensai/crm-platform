@@ -41,6 +41,13 @@
           </template>
         </el-dropdown>
       </el-header>
+      <!-- 只读演示账号的常驻提示。放在这里而不是做成一次性弹窗：
+           演示往往由别人操作，中途刷新后 toast 就没了，而他并不知道
+           自己为什么点不动任何按钮。 -->
+      <div v-if="auth.isReadonly" class="readonly-bar">
+        <el-icon :size="15"><View /></el-icon>
+        <span>当前为只读演示账号，可以浏览全部数据，但不能新增、修改或删除</span>
+      </div>
       <el-main class="main">
         <router-view />
       </el-main>
@@ -222,6 +229,25 @@ function onCommand(cmd) {
   background: #fdf6ec;
   border: 1px solid #f0d7a8;
   flex: 0 0 auto;
+}
+
+/* 只读演示账号的横幅。
+   ★ 用 --crm-warn 那套暖色，不用红色：这不是故障，是「功能被有意关掉」。
+     涂成报错红会让人第一反应是系统坏了，然后去点按钮验证——正好是他不该做的。
+   ★ 不设 fixed/absolute，就留在文档流里：`.main` 是自动撑高的，
+     脱离文档流会直接盖住页面顶部那几行筛选条件。 */
+.readonly-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 9px 24px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--crm-warn);
+  background: #fdf6ec;
+  border-bottom: 1px solid #f0d7a8;
 }
 
 /* —— 顶栏：去掉毛玻璃 ——

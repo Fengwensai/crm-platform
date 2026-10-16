@@ -14,6 +14,10 @@ export const useAuthStore = defineStore('auth', {
     isManager: (s) => s.user?.role === 'manager' || s.user?.role === 'super_admin',
     isSuper: (s) => s.user?.role === 'super_admin',
     isLeader: (s) => s.user?.role === 'leader',
+    // 只读演示账号（赛事评审用）。
+    // ★ 这只是 UX：让界面别摆出一堆点了就报错的按钮。真正的拦截在服务端
+    //   （core/deps.py:reject_readonly_write），前端任何判断都不构成安全边界。
+    isReadonly: (s) => !!s.user?.is_readonly,
     // 「这个人能看到不止自己」——组长和管理者都是。凡是界面上要问
     // 「要不要给他看别人的名字」的地方一律用它，别写 `!isEmployee`：
     // 那种写法在角色扩到第五种时会静默变成「看不到」或「看得到」，取决于写法。

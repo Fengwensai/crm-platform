@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 from sqlalchemy.orm import Session
@@ -17,6 +17,8 @@ __all__ = [
     "get_current_user",
     "is_leader",
     "is_manager",
+    "is_readonly",
+    "reject_readonly_write",
     "require_manager",
     "require_super_admin",
 ]
@@ -76,3 +78,37 @@ def is_leader(user: User) -> bool:
     """是不是组长（能看本组）。注意组长**不是**管理者：打 `/api/users`、
     `/api/audit-logs` 这类管理者端点照样 403。"""
     return user.role == LEADER_ROLE and user.team_id is not None
+
+
+def is_readonly(user: User) -> bool:
+    """是不是只读演示账号。
+
+    与 `role` / `scope` 正交：`scope.py` 决定「能看见谁的数据」，这个决定
+    「看见之后能不能改」。所以它不该做进 scope，而应该在写操作之前先拦一道。
+    """
+    return bool(getattr(user, "is_readonly", False))
+
+
+READ_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def reject_readonly_write(
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> None:
+    """只读演示账号发起写操作时一律 403。
+
+    为什么不做进 `get_current_user`：它只看凭据、拿不到 HTTP 方法，而「只读」
+    的本质恰恰是按方法区分的（读放行、写拒绝），所以只能在这里用
+    `request.method` 判断。
+
+    挂在哪些路由上见 `main.py` —— **`auth` 路由必须排除**：它的 `POST /login`
+    与 `POST /register` 是公开接口，挂上去会让所有人（包括评委自己）登不进来。
+    """
+    if request.method in READ_SAFE_METHODS:
+        return
+    if is_readonly(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="当前为只读演示账号，不能修改数据",
+        )

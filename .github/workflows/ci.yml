@@ -104,6 +104,18 @@ jobs:
           echo "===== verify_scope ====="
           .venv/bin/python scripts/verify_scope.py || { echo "FAIL: verify_scope"; exit 1; }
 
+      # 37 条断言：只读演示账号（赛事评审用）的写拦截。
+      # 这道守卫挂在 19 个写接口前，**漏挂一个 router 就是一处绕过口子**，
+      # 所以它逐个 router 各打一发，而不是只测 teams 一个。
+      # 同时用普通账号打同一批请求，断言「不是 403」——守卫最容易写错的方式
+      # 是拦成一刀切（所有非 GET 全拦），那会把正常账号一起打死。
+      - name: 只读账号拦截（37 断言）
+        working-directory: backend
+        run: |
+          set -e
+          echo "===== verify_readonly ====="
+          .venv/bin/python scripts/verify_readonly.py || { echo "FAIL: verify_readonly"; exit 1; }
+
   frontend:
     name: 前端构建
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import Boolean, DateTime, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -45,3 +45,10 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     review_note: Mapped[str] = mapped_column(String(255), default="")
+    # 只读账号（赛事/评审演示用）：登进来只能看，任何写操作被服务端 403。
+    # 与 status 正交 —— status 管「能不能登录」，这个管「登录后能不能改数据」。
+    # server_default 是必须的：migrate_v2.py 拒绝往已有数据的表加「NOT NULL 且
+    # 无默认值」的列（见该脚本 :100-106），带上它老行才会直接补成 false。
+    is_readonly: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), nullable=False
+    )

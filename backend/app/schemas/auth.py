@@ -33,5 +33,8 @@ class MeOut(BaseModel):
     status: str
     team_id: int | None = None
     team_name: str = ""
+    # 只读演示账号。前端据它置灰写操作入口并挂一条提示——
+    # **只是 UX**，真正的拦截在服务端（core/deps.py:reject_readonly_write）。
+    is_readonly: bool = False
 
     model_config = {"from_attributes": True}

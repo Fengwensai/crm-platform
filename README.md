@@ -18,14 +18,20 @@
 
 ### 演示账号（线上环境，供评审参观）
 
-| 用户名 | 密码 | 角色 | 可见范围 |
-|---|---|---|---|
-| `la` | `demo1234` | 组长 | 仅本组（梦迪组）数据 |
+| 用户名 | 密码 | 角色 | 可见范围 | 权限 |
+|---|---|---|---|---|
+| `la` | `demo1234` | 组长 | 仅本组（梦迪组）数据 | **只读** |
 
 > 用这个账号登录最能看清本平台的核心设计——**数据隔断**：组长只能看到本组员工的填报记录，
 > 看板也只统计本组，看不到其它组，更看不到全公司。
 >
-> 该账号**仅供赛事评审演示使用**，赛后回收。
+> ★ **该账号是只读的**：密码印在公开仓库和参赛 PPT 上，所以它只能看、不能改——
+> 服务端挂在 router 级依赖上，对**所有**写接口统一拦
+> `403 当前为只读演示账号，不能修改数据`（`GET/HEAD/OPTIONS` 照常放行），
+> 不是只在界面上把按钮藏起来。前端登录后常驻一条只读提示条。
+> 回归见 `backend/scripts/verify_readonly.py`（37 项断言，逐个 router 各打一发）。
+>
+> 该账号**仅供赛事评审演示使用，赛后回收**。
 
 > 全新库上 `scripts/init_db.py` 只建一个超管 `admin`，初始密码取自 `.env` 的
 > `ADMIN_INIT_PASSWORD`（`.env.example` 里是 `CHANGE_ME`）——生产库的密码与仓库中任何默认值都不同。
@@ -134,18 +140,21 @@
 
 ```
 backend/
-  app/core/       配置、鉴权、限流、审计、客户端 IP、时区、**scope（数据隔断）**、guards（删除守卫）
+  app/core/       配置、鉴权、限流、审计、客户端 IP、时区、**scope（数据隔断）**、
+                  guards（删除守卫）、**deps 里的只读守卫**（reject_readonly_write，见「演示账号」）
   app/models/     user / team / project / annotation_record / qc_record / audit_log / work_record(v1 遗留)
   app/routers/    auth / users / teams / projects / annotations / qc / stats / audit
   app/services/   export.py（CSV 导出，复制自方言平台）
   scripts/        init_db.py（建表+种子超管）、migrate_v2.py（线上增量迁移，幂等）、
-                  verify_core.py / verify_scope.py / verify_schema.py（三条回归）、
+                  verify_core.py / verify_scope.py / verify_schema.py /
+                  verify_readonly.py（四条回归）、
                   backup.sh（每日备份）、e2e_http.sh（走公网的端到端冒烟）
 frontend/         Vue3 + Element Plus + Vite，浅色主题
   src/constants/nav.js   菜单 + 路由的唯一真相源
   src/components/        RecordHistory.vue（改动前→后弹窗）、TrendBars.vue（手绘双轨柱图）
   src/views/             AnnotationWork / QcWork / Dashboard / UserManage / ProjectManage
   src/views/users/       UserManage 的四个 tab：TabPending / TabAccounts / TabTeams / TabAudit
+  public/                favicon.svg / favicon.ico / apple-touch-icon.png（取自侧栏品牌渐变，Vite 原样拷到 dist 根）
 ```
 
 > v1 的 `MyWork.vue` / `MyStats.vue` / `AllRecords.vue` / `AccountReview.vue` / `AuditLog.vue`
@@ -169,7 +178,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5174
 
 ## 回归测试
 
-三条，**互不替代**：
+四条，**互不替代**：
 
 ```bash
 cd backend
@@ -188,12 +197,17 @@ DATABASE_URL=sqlite:///./_smoke.db ./.venv/Scripts/python.exe scripts/verify_cor
 #    只在真 PG 上有意义，且必须在 migrate_v2.py 跑过之后跑。
 .venv/Scripts/python.exe scripts/verify_schema.py
 
+# ④ 只读演示账号拦截（37 项断言）：写被 403、读照常、正常账号不被误伤。
+#    进程内跑（TestClient），**不带 token 也不行**——所以它在 CI 里跑的是临时库，
+#    但也可以直接对着生产库跑（探针全部指向哨兵 id 999999999 或自建夹具）。
+DATABASE_URL=sqlite:///./_ro.db ./.venv/Scripts/python.exe scripts/verify_readonly.py
+
 # 服务器上跑（真 PG）。HOME=/tmp 是为了避开 www-data 家目录不可写的告警；
 # PYTHONIOENCODING=utf-8 必须带——断言标题是中文，locale 不是 UTF-8 时会直接炸在 print 上。
 cd /opt/crm/backend && sudo -u www-data HOME=/tmp PYTHONIOENCODING=utf-8 \
   .venv/bin/python scripts/verify_core.py
 
-# ④ 走公网域名的端到端（8 项）：验 nginx / TLS / Authorization 透传、
+# ⑤ 走公网域名的端到端（8 项）：验 nginx / TLS / Authorization 透传、
 #    建项目 → 登记标注 → 统计卡计入、★「不存在的记录 → 404 而不是 403」。
 #    只能在服务器上跑（要用 --resolve 绕开服务器没有 hairpin NAT 这件事）。
 bash scripts/e2e_http.sh
@@ -256,9 +270,10 @@ rm -rf /opt/crm/frontend/dist && mkdir -p /opt/crm/frontend/dist \
 systemctl restart crm-api && sleep 3 && systemctl is-active crm-api
 
 # ── ③ 验 ────────────────────────────────────────────────────────
-sudo -u www-data HOME=/tmp .venv/bin/python scripts/verify_schema.py
-sudo -u www-data HOME=/tmp .venv/bin/python scripts/verify_core.py   # 149 项
-sudo -u www-data HOME=/tmp .venv/bin/python scripts/verify_scope.py  # 30 项
+sudo -u www-data HOME=/tmp PYTHONIOENCODING=utf-8 .venv/bin/python scripts/verify_schema.py
+sudo -u www-data HOME=/tmp PYTHONIOENCODING=utf-8 .venv/bin/python scripts/verify_core.py    # 149 项
+sudo -u www-data HOME=/tmp PYTHONIOENCODING=utf-8 .venv/bin/python scripts/verify_scope.py   # 30 项
+sudo -u www-data HOME=/tmp PYTHONIOENCODING=utf-8 .venv/bin/python scripts/verify_readonly.py # 37 项
 bash scripts/e2e_http.sh
 ```
 
